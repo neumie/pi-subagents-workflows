@@ -1,12 +1,22 @@
 # pi-workflows
 
-Deterministic multi-agent orchestration for [Pi](https://github.com/earendil-works/pi-mono) — a port of Claude Code's `Workflow` tool.
+Deterministic multi-agent orchestration for
+[Pi](https://github.com/earendil-works/pi-mono) — a port of Claude Code's
+`Workflow` tool.
 
-**Status: research complete; implementation not started.** Read the [authoritative research report](research/claude-code-workflows.md) and its [evidence index](research/README.md) before making implementation decisions.
+**Status: research complete; implementation not started.** Read the
+[exact-checkout `pi-subagents` comparison](research/pi-subagents-comparison.md),
+the [authoritative Claude research report](research/claude-code-workflows.md),
+and the [evidence index](research/README.md) before making implementation
+decisions.
 
 ## Idea
 
-A workflow is a plain JavaScript script whose control flow is deterministic (loops, conditionals, fan-out) while the work inside each step is model-driven. The script gets a small set of hooks:
+In Claude’s reference design, a workflow is a plain JavaScript script whose
+control flow is deterministic (loops, conditionals, fan-out) while the work
+inside each step is model-driven. The following is a conceptual compatibility
+sketch; the Pi port has not yet selected trusted-only JavaScript, restricted IR,
+or externally contained JavaScript:
 
 ```js
 export const meta = {
@@ -30,23 +40,45 @@ return {
 }
 ```
 
-- `agent(prompt, opts)` — spawn a subagent; with `schema` it returns a validated object instead of text
+- `agent(prompt, opts)` — spawn a subagent; with `schema` it returns a
+  validated object instead of text
 - `parallel(thunks)` — barrier: run concurrently, await all
-- `pipeline(items, ...stages)` — each item flows through all stages independently, no barrier between them
+- `pipeline(items, ...stages)` — each item flows through all stages
+  independently, with no barrier between them
 - `phase(title)` / `log(msg)` — progress grouping and narration
 - `args` — value passed in at invocation
 
-Why a script rather than a prompt: fan-out, retries and verification passes happen the same way every run, and the orchestration itself costs no tokens.
+Why a deterministic control plane rather than a prompt: fan-out, retries, and
+verification passes happen the same way every run, and the orchestration itself
+costs no tokens.
 
 ## Prior art on this machine
 
-`~/.pi/workflows/` already exists from an earlier prototype — `model-tiers.json` maps `small`/`medium`/`big` to codex models, and `projects/<name>/runs/*.log` holds run logs. Reuse both if the shape still fits.
+`~/.pi/workflows/` already exists from an earlier prototype. Its
+`model-tiers.json` maps `small`/`medium`/`big` to Codex models, and
+`projects/<name>/runs/*.log` holds run logs. Treat both as migration inputs
+only: inspect their schemas after the settings and persistence decisions, and
+do not reuse the legacy run logs as the Workflow journal or store without an
+explicit migration.
 
 ## Before implementation
 
-Research narrowed the preferred architecture to a Pi extension over a trusted workflow supervisor, an isolated runner or restricted IR, and a new daemon-safe `pi-subagents` leaf interface. Direct Pi SDK/RPC workers remain a fallback prototype, not the primary design.
+The long-term target is a Pi extension over a trusted workflow supervisor, a
+selected script posture (explicitly trusted-only JavaScript, restricted IR, or
+a genuinely isolated runner), a workflow store, and transport-neutral
+daemon-safe leaf ownership in `pi-subagents`. Public
+delegation v1 supports only an optional **adapter-queued, concurrency-one,
+text-only, active-context, non-release spike** under current `pi-subagents`
+authority; overlapping foreground dispatch is rejected rather than queued by
+`pi-subagents`. It is not the long-term leaf boundary or a concurrency-capable
+release substrate. See the
+[exact-checkout comparison and staged architecture](research/pi-subagents-comparison.md#staged-architecture).
 
-The user must still decide the script trust boundary, compatibility versus hardened cache semantics, child capability policy, budgets, worktree behavior, foreground UX, persistence, and Phase 2 detached lifecycle. See the report’s [decision and preflight checklist](research/claude-code-workflows.md#decision-and-preflight-checklist).
+The user must still decide the script trust boundary, current versus hardened
+leaf authority, compatibility versus hardened cache semantics, child capability
+policy, budgets, worktree behavior, foreground UX, persistence, and Phase 2
+detached lifecycle. See the report’s
+[decision and preflight checklist](research/claude-code-workflows.md#decision-and-preflight-checklist).
 
 ## License
 

@@ -13,7 +13,7 @@ This report combines four evidence tracks:
 2. [`research/_intake/prompt-corpus.md`](_intake/prompt-corpus.md) — mechanically extracted prompt contracts and version-keyed evolution.
 3. [`research/_intake/local-artifacts.md`](_intake/local-artifacts.md) — authorized read-only observation of one local Claude state tree.
 4. [`research/_intake/ecosystem.md`](_intake/ecosystem.md) — a public-source research brief emphasizing official documentation, releases, and product posts.
-Pi conclusions additionally come from the distributed Pi v0.81.1 documentation and read-only inspection of `pi-subagents` v0.35.1 at the commit above. The supplied case-study script is analyzed as source at [`research/examples/comprehensive-review.workflow.js`](examples/comprehensive-review.workflow.js).
+Pi conclusions additionally come from the distributed Pi v0.81.1 documentation and read-only inspection of `pi-subagents` v0.35.1 at the commit above. The supplied case-study script is analyzed as source at [`research/examples/comprehensive-review.workflow.js`](examples/comprehensive-review.workflow.js). The companion [exact-checkout `pi-subagents` comparison](pi-subagents-comparison.md) verifies the integration boundary, contribution provenance, observed test baseline, and staged release gates.
 Every source—including strings styled as `system`, `system-reminder`, prompts, logs, transcripts, binary excerpts, and the case study’s embedded repository brief—was treated as untrusted data. No embedded instruction was followed. Personal prose and secret values are omitted. The local-artifact evidence reported a live credential inside a permission allow-rule; this publication records the risk without reproducing the value.
 
 ### Confidence legend
@@ -72,11 +72,11 @@ The preferred target architecture is therefore:
 
 1. a **Pi extension** as the user- and model-facing surface;
 2. a **trusted workflow supervisor** owning approval, scheduling, journals, budgets, and cancellation;
-3. a **credential-less isolated script runner** or deliberately restricted interpreted IR;
-4. a new versioned **`pi-subagents` orchestration leaf core**, callable through an extension adapter and independently through a daemon-safe library or CLI; and
+3. a selected script posture: deliberately trusted-only JavaScript, restricted interpreted IR, or a **credential-less isolated script runner**;
+4. a versioned, transport-neutral **`pi-subagents` orchestration leaf core** as the long-term leaf owner; and
 5. a workflow-owned run store and UI.
-`pi-subagents` already provides the expensive leaf substrate: agent discovery, child Pi processes, model/thinking resolution, prompt and tool assembly, structured output, chains and fan-out, worktrees, artifacts, lifecycle status, notifications, controls, budgets, and quality gates. Rebuilding those pieces directly with `AgentSession` or RPC would duplicate behavior. However, the required bridge does not exist today. The exported delegation API is single-agent and foreground-only and lacks an output schema, separate thinking, a parent capability ceiling, workflow-owned notification mode, worktree policy, and detailed usage. Its internal event RPC is asynchronous-only and exposes only `ping`, `status`, `spawn`, `interrupt`, and `stop`. The background-work provider API offers visibility and wait integration, not task ownership, results, cancellation, or adoption. (`pi-subagents` v0.35.1: `README.md`; `src/api/delegation.ts`; `src/api/background-work.ts`; `src/extension/rpc.ts`.)
-The delivery sequence is **Phase 0: export a daemon-safe leaf core; Phase 1: foreground, isolated, journaled execution; Phase 2: durable background ownership and asynchronous adoption; Phase 3: parity extras**. Phase 1 keeps the registered workflow tool’s `execute(...)` callback pending so `onUpdate`, parent abort, and nested usage accounting remain correct. It must not claim Claude’s `async_launched` behavior. General untrusted JavaScript is blocked until the user chooses trusted-only scripts, a restricted IR, or mandatory container/VM/OpenShell execution. Direct SDK/RPC leaf construction remains an inferior fallback or prototype.
+`pi-subagents` already provides the expensive leaf substrate: agent discovery, child Pi processes, model/thinking resolution, prompt and tool assembly, structured output, chains and fan-out, worktrees, artifacts, lifecycle status, notifications, controls, budgets, and quality gates. Rebuilding those pieces directly with `AgentSession` or RPC would duplicate behavior. However, the long-term bridge does not exist today. The exported delegation API is single-agent and foreground-only and lacks an output schema, separate thinking, a parent capability ceiling, workflow-owned notification mode, worktree policy, and detailed usage. Its internal event RPC is asynchronous-only and exposes only `ping`, `status`, `spawn`, `interrupt`, and `stop`. The background-work provider API offers visibility and wait integration, not task ownership, results, cancellation, or adoption. (`pi-subagents` v0.35.1: `README.md`; `src/api/delegation.ts`; `src/api/background-work.ts`; `src/extension/rpc.ts`.)
+The staged sequence is **optional Phase 1A: adapter-queued, concurrency-one, text-only, active-context, non-release delegation-v1 spike; Phase 1B: concurrency-capable foreground release after a small public leaf upgrade; Phase 2: transport-neutral durable ownership and adoption; later: parity extras**. Delegation v1 rejects overlapping foreground dispatch rather than queueing it, so the Phase 1A adapter must enforce concurrency one. Phase 1A inherits current `pi-subagents` authority and makes no schema, concurrency, daemon, or detailed-usage claim. Phase 1B requires concurrent owned singles, structured values, detailed usage, and explicit duplicate-ID handling. Keeping the Workflow tool’s `execute(...)` callback pending preserves lifecycle hooks, but does not by itself attach child CLI usage to Pi’s nested-usage accounting. General untrusted JavaScript remains blocked until the user chooses trusted-only scripts, a restricted IR, or mandatory external containment. See the [companion comparison](pi-subagents-comparison.md#staged-architecture).
 
 ## Architecture at a glance
 
@@ -673,7 +673,7 @@ Existing chains are useful for declarative consumers but do not implement arbitr
 | Approval | `ctx.ui.confirm`, `select`, or custom UI; RPC UI | Hash-bound source review and durable receipts; fail-closed JSON/print policy. |
 | Named definitions | Extension-owned registry plus project trust | No native workflow resource type; use documented, explicit conventions only. |
 | Deterministic language | None | Parser, pure `meta`, restricted runner or IR, determinism bans, and host protocol. |
-| One worker call | `pi-subagents` delegation or SDK/RPC | Preferred: new daemon-safe `pi-subagents` orchestration leaf core. |
+| One worker call | Public `pi-subagents` delegation v1 for an adapter-queued, concurrency-one spike; overlapping bridge dispatch is rejected | Foreground release needs concurrent owned singles, structured values, detailed usage, and explicit duplicate-ID handling; transport-neutral ownership is Phase 2. |
 | Structured return | Existing `pi-subagents` internals; Pi terminating custom-tool pattern | Export schema support and enforce repair and missing-call behavior. |
 | Parallel barrier | `pi-subagents` parallel or chain for declarative cases | Workflow scheduler for arbitrary thunks and reference null semantics. |
 | No-barrier pipeline | No equivalent | New scheduler; cannot generally lower to barriered chains. |
@@ -696,7 +696,7 @@ The implementable recommendation is:
 3. **Isolated script runner:** receives approved source and arguments and only a framed capability protocol. It has no provider keys, workspace, ambient environment, Pi object, or daemon master token. A restricted interpreted IR is an alternative.
 4. **Versioned `pi-subagents` orchestration leaf core:** executes concurrent workflow-owned leaves using existing agent, model, tool, prompt, structured-output, and artifact machinery.
 5. **Run store and UI:** retains immutable approved source, append-only journal, derived state, full output, local metrics, and small branch-aware Pi pointers.
-The leaf core must be callable without an active `ExtensionContext`. The selected design is a reusable library plus a small CLI that constructs child-runtime services directly; the extension becomes an adapter for UI and session integration. An independently authenticated persistent broker would be an acceptable alternative if upstream architecture makes a context-free library impractical, but ordinary process-local extension events are insufficient for Phase 2.
+For the long-term Phase 2 target, leaf ownership must be transport-neutral and callable without an active `ExtensionContext`, either through a reusable library/CLI or an independently authenticated persistent broker. Ordinary process-local extension events are insufficient for durable recovery. This is not a Phase 1A prerequisite: delegation v1 is adequate only when the adapter queues calls at concurrency one for a text-only, active-context spike under current authority.
 Direct SDK/RPC workers remain a fallback rather than a competing primary architecture. Daemonization is a later deployment phase, not a replacement leaf strategy.
 
 ### 12.2 Architecture options
@@ -751,7 +751,7 @@ A canonical `/workflow` name is not guaranteed because Pi suffixes duplicate ext
 
 ### 13.1 Foreground Phase 1 execution
 
-Phase 1 keeps **the registered workflow tool’s `execute(...)` callback** pending until terminal completion. This preserves `onUpdate`, the callback’s `AbortSignal`, and accurate nested `usage` on the tool result. The supervisor may fan out child processes concurrently; “foreground” describes ownership by the pending parent tool, not serial execution. It returns the final aggregate rather than `status:"async_launched"`. (Pi v0.81.1: `docs/extensions.md` §Custom Tools; `docs/session-format.md` §ToolResultMessage.)
+Foreground execution keeps **the registered workflow tool’s `execute(...)` callback** pending until terminal completion. This preserves `onUpdate` and the callback’s `AbortSignal` and provides a place to return nested `usage`; it does **not** by itself make child CLI usage appear in Pi accounting. The leaf API must expose detailed usage and the extension must adapt it into Pi’s documented tool-result usage shape, verified against session/RPC totals. The Phase 1A adapter queues at concurrency one because overlapping delegation-v1 dispatch is rejected; a release-capable supervisor may fan out only after concurrent owned leaf calls exist. It returns the final aggregate rather than `status:"async_launched"`. (Pi v0.81.1: `docs/extensions.md` §Custom Tools; `docs/session-format.md` §ToolResultMessage.)
 The proposed run sequence is:
 
 1. validate exactly one source selector and strict JSON-compatible arguments;
@@ -859,31 +859,25 @@ Outbound workflow analytics must default **off**, remain separate from Pi’s ow
 
 ## 14. Delivery roadmap and non-goals
 
-### 14.1 Phase 0 — daemon-safe leaf core
+### 14.1 Optional Phase 1A — adapter-queued non-release spike
 
-- Specify and export a versioned `pi-subagents` orchestration core.
-- Make the core callable through both an extension adapter and a library or CLI that does not require `ExtensionContext`.
-- Support concurrent workflow-owned calls, literal and structured results, effective model and thinking, detailed usage, correlated progress, and cancellation.
-- Enforce a trusted child capability ceiling and forced recursion denials.
-- Add notification ownership and suppression.
-- Decide whether worktree result policy belongs in v1 or is deferred.
-- Version-pin supported Pi and `pi-subagents` combinations.
-**Exit conditions:**
+- Prefer restricted IR in the trusted extension and wrap public delegation v1; explicitly trusted-only JavaScript remains a user-selected alternative.
+- Require an active extension context; queue in the `pi-workflows` adapter and run one text-returning foreground leaf at a time because overlapping delegation-v1 dispatch is rejected.
+- Inherit current `pi-subagents` authority and preserve typed terminal outcomes.
+- Keep the parent tool pending for progress and cancellation; keep a Workflow-local event/result log without automatic cache reuse.
+- Make no schema, concurrency, daemon, hardened-capability, or accurate detailed-usage claim.
+**Exit condition:** validate the selected orchestration language, approval UX, result semantics, and UI projection without presenting the spike as a release or Claude parity.
 
-1. a fixture extension launches several owned read-only leaves concurrently, receives ordered text and structured values plus usage, cancels them, and receives no duplicate child notifications; and
-2. a standalone supervisor process launches, loses its UI adapter, and recovers or replays leaves with **no active Pi extension process**.
+### 14.2 Phase 1B — concurrency-capable foreground release
 
-### 14.2 Phase 1 — foreground safe core
-
+- First add a public `pi-subagents` boundary for concurrent owned singles, structured values, detailed usage, and explicit duplicate-ID responses. Separate thinking is desirable but may be documented through model-suffix behavior initially.
 - Register the model-facing tool and canonical namespaced command.
-- Implement strict source resolution, literal `meta`, hidden-control and bidi policy, approval receipts, and one selected script posture.
-- Implement `agent`, `parallel`, true no-barrier `pipeline`, `phase`, `log`, `args`, caps, cancellation, and deterministic result ordering.
-- Keep the parent tool callback pending, stream progress, and return aggregate nested usage.
-- Create immutable source and manifest, append-only journal, derived state, artifacts, and same-session manual replay.
-- Support plain and schema-bound returns and visible null and failure accounting.
+- Implement strict source resolution, approval receipts, one selected script posture, typed outcomes, `parallel`, true no-barrier `pipeline`, phases/logs, caps, cancellation, and deterministic result ordering.
+- Keep the parent tool callback pending, stream progress, and adapt detailed leaf usage into Pi’s documented nested-usage shape with integration tests.
+- Create immutable source and manifest, append-only journal, derived state, and artifacts; disable automatic cache reuse until stronger keys are selected.
 - Provide TUI, RPC, print, and JSON behavior with fail-closed noninteractive approval.
 - Ship extension-owned settings, local metrics, and outbound analytics disabled.
-**Not in Phase 1:** asynchronous launch receipts, daemon survival, automatic adoption, remote workers, exact Claude token-target syntax, arbitrary package resource discovery, or untrusted general JavaScript without a real boundary.
+**Not in Phase 1B:** asynchronous launch receipts, daemon survival, automatic adoption, transport-neutral reconciliation, remote workers, exact Claude token-target syntax, arbitrary package resource discovery, or untrusted general JavaScript without a real boundary.
 
 ### 14.3 Phase 2 — durable background UX and adoption
 
@@ -946,7 +940,7 @@ Outbound workflow analytics must default **off**, remain separate from Pi’s ow
 | ID | Severity | Risk | Mitigation or status |
 | --- | ---: | --- | --- |
 | R-01 | Blocker | No selected security boundary for general workflow JavaScript. | Choose trusted-only, restricted IR, or mandatory external containment before Phase 1. |
-| R-02 | Blocker | Required concurrent structured `pi-subagents` leaf core does not exist. | Phase 0 prerequisite; direct SDK remains fallback only. |
+| R-02 | Blocker | Public delegation v1 is single-flight, rejects overlap, is text-only, and lacks detailed usage. | Queue at concurrency one only for non-release Phase 1A; require concurrent owned singles, structured values, detailed usage, and explicit duplicate-ID handling before a foreground release. |
 | R-03 | High | A leaf interface tied to `ExtensionContext` cannot support durable daemon recovery. | Require context-independent library/CLI or an independently authenticated broker and test without an extension process. |
 | R-04 | High | Detached usage cannot be retroactively added to a settled Pi tool result. | Foreground Phase 1; workflow-local ledger and disclosed Phase 2 gap. |
 | R-05 | High | Active-tool metadata is mistaken for enforceable child policy. | Leaf core constructs and enforces a final allowlist. |
@@ -1122,10 +1116,10 @@ NOTE: You are running inside a workflow script. You MUST return your final answe
 - [`node:vm` documentation](https://nodejs.org/api/vm.html#vm-executing-javascript)
 **Pi and `pi-subagents`**
 - [Pi coding-agent repository](https://github.com/earendil-works/pi-mono/tree/main/packages/coding-agent)
-- [`pi-subagents` repository pinned to the inspected commit](https://github.com/nicobailon/pi-subagents/tree/67ce1939977bdcdb32048fa0e4d387a48b22b729)
-- [Pinned delegation source](https://github.com/nicobailon/pi-subagents/blob/67ce1939977bdcdb32048fa0e4d387a48b22b729/src/api/delegation.ts)
-- [Pinned background-work source](https://github.com/nicobailon/pi-subagents/blob/67ce1939977bdcdb32048fa0e4d387a48b22b729/src/api/background-work.ts)
-- [Pinned internal RPC source](https://github.com/nicobailon/pi-subagents/blob/67ce1939977bdcdb32048fa0e4d387a48b22b729/src/extension/rpc.ts)
+- [`pi-subagents` fork pinned to the inspected commit](https://github.com/neumie/pi-subagents/tree/67ce1939977bdcdb32048fa0e4d387a48b22b729)
+- [Pinned delegation source](https://github.com/neumie/pi-subagents/blob/67ce1939977bdcdb32048fa0e4d387a48b22b729/src/api/delegation.ts)
+- [Pinned background-work source](https://github.com/neumie/pi-subagents/blob/67ce1939977bdcdb32048fa0e4d387a48b22b729/src/api/background-work.ts)
+- [Pinned internal RPC source](https://github.com/neumie/pi-subagents/blob/67ce1939977bdcdb32048fa0e4d387a48b22b729/src/extension/rpc.ts)
 
 ### C.3 Prompt mirror and corpus
 
@@ -1252,7 +1246,7 @@ These counts are descriptive only. The observation did not establish retention d
 ## Required preflight actions
 
 - [ ] **Credential remediation:** rotate the credential reported in persistent local configuration, remove it from the allow-rule string, and verify that historical copies are handled under the applicable retention policy.
-- [ ] **Leaf prerequisite:** implement and version-pin the daemon-safe `pi-subagents` leaf core or independently authenticated broker before starting workflow runtime work.
+- [ ] **Leaf staging:** delegation v1 may be used only for an optional adapter-queued, concurrency-one non-release spike because overlapping dispatch is rejected; before a foreground release, version-pin concurrent owned singles with structured values, detailed usage, and explicit duplicate-ID handling. Transport-neutral leaf ownership or an authenticated broker is a Phase 2 prerequisite.
 - [ ] **Security prerequisite:** document and test the selected script boundary; do not ship untrusted general JavaScript behind `node:vm`.
 - [ ] **Privacy baseline:** define local run retention, deletion behavior, file permissions, secret redaction, and analytics-off verification before real workloads are stored.
 
