@@ -2,7 +2,7 @@
 
 Deterministic multi-agent orchestration for [Pi](https://github.com/earendil-works/pi-mono) — a port of Claude Code's `Workflow` tool.
 
-**Status: not implemented.** Repo scaffold only.
+**Status: research complete; implementation not started.** Read the [authoritative research report](research/claude-code-workflows.md) and its [evidence index](research/README.md) before making implementation decisions.
 
 ## Idea
 
@@ -23,7 +23,11 @@ const results = await pipeline(
     agent(`Adversarially verify: ${f.title}`, { schema: VERDICT })
       .then(v => ({ ...f, verdict: v })))),
 )
-return results.flat().filter(Boolean).filter(f => f.verdict?.isReal)
+return {
+  requested: DIMENSIONS.length,
+  completed: results.filter(value => value !== null).length,
+  results,
+}
 ```
 
 - `agent(prompt, opts)` — spawn a subagent; with `schema` it returns a validated object instead of text
@@ -38,14 +42,11 @@ Why a script rather than a prompt: fan-out, retries and verification passes happ
 
 `~/.pi/workflows/` already exists from an earlier prototype — `model-tiers.json` maps `small`/`medium`/`big` to codex models, and `projects/<name>/runs/*.log` holds run logs. Reuse both if the shape still fits.
 
-## Open decisions
+## Before implementation
 
-1. **Engine** — how `agent()` spawns work:
-   - pi SDK in-process (`createAgentSession()` per call) — per-agent model/thinking, forced structured output, live events for a progress tree
-   - `pi -p --mode json` subprocess per call — hard isolation, easy per-agent cwd/worktree, ~1s startup each
-   - drive [`pi-subagents`](https://github.com/neumie/pi-subagents) — least new code, but its API is model-facing rather than programmatic
-2. **v1 scope** — core (phases, pipeline, schema, journal + resume, progress widget, background run) vs full parity (+ worktree isolation, token budget, nested `workflow()`, custom agent types, saved named workflows)
-3. **Packaging** — extension registering a `workflow` tool plus a `/workflows` progress view, per the pi extension API (`pi.registerTool`, `pi.registerCommand`, `ctx.ui.setWidget`)
+Research narrowed the preferred architecture to a Pi extension over a trusted workflow supervisor, an isolated runner or restricted IR, and a new daemon-safe `pi-subagents` leaf interface. Direct Pi SDK/RPC workers remain a fallback prototype, not the primary design.
+
+The user must still decide the script trust boundary, compatibility versus hardened cache semantics, child capability policy, budgets, worktree behavior, foreground UX, persistence, and Phase 2 detached lifecycle. See the report’s [decision and preflight checklist](research/claude-code-workflows.md#decision-and-preflight-checklist).
 
 ## License
 
