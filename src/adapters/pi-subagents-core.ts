@@ -31,7 +31,8 @@ const MAX_METADATA_BYTES = 1024;
 const MAX_CWD_BYTES = 32 * 1024;
 const MAX_EVENT_BYTES = 256;
 const MAX_JSON_ENTRIES = 100_256;
-const PROHIBITED_TEXT = /[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/u;
+const PROHIBITED_TEXT =
+	/[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/u;
 
 const USAGE_FIELDS = [
 	"input",
@@ -177,7 +178,9 @@ function dataMethod(input: object, name: "on" | "emit"): Function {
 	let current: object | null = input;
 	while (current !== null) {
 		if (utilTypes.isProxy(current))
-			throw new PiSubagentsV2UnavailableError("adapter event bus must not be a proxy");
+			throw new PiSubagentsV2UnavailableError(
+				"adapter event bus must not be a proxy",
+			);
 		let descriptor: PropertyDescriptor | undefined;
 		try {
 			descriptor = Object.getOwnPropertyDescriptor(current, name);
@@ -208,7 +211,9 @@ function dataMethod(input: object, name: "on" | "emit"): Function {
 
 function snapshotOptions(input: unknown): AdapterOptionsSnapshot {
 	if (typeof input !== "object" || input === null || utilTypes.isProxy(input))
-		throw new PiSubagentsV2UnavailableError("adapter options must be a plain object");
+		throw new PiSubagentsV2UnavailableError(
+			"adapter options must be a plain object",
+		);
 	let prototype: object | null;
 	let keys: (string | symbol)[];
 	let descriptors: PropertyDescriptorMap;
@@ -222,11 +227,15 @@ function snapshotOptions(input: unknown): AdapterOptionsSnapshot {
 		);
 	}
 	if (prototype !== Object.prototype && prototype !== null)
-		throw new PiSubagentsV2UnavailableError("adapter options must be a plain object");
+		throw new PiSubagentsV2UnavailableError(
+			"adapter options must be a plain object",
+		);
 	const allowed = new Set(["events", "cwd", "context"]);
 	for (const key of keys) {
 		if (typeof key !== "string" || !allowed.has(key))
-			throw new PiSubagentsV2UnavailableError("adapter options contain an unknown field");
+			throw new PiSubagentsV2UnavailableError(
+				"adapter options contain an unknown field",
+			);
 		const descriptor = descriptors[key];
 		if (!descriptor || !("value" in descriptor) || !descriptor.enumerable)
 			throw new PiSubagentsV2UnavailableError(
@@ -258,7 +267,9 @@ function snapshotOptions(input: unknown): AdapterOptionsSnapshot {
 	const selectedContext =
 		context && "value" in context ? (context.value as unknown) : "fresh";
 	if (selectedContext !== "fresh" && selectedContext !== "fork")
-		throw new PiSubagentsV2UnavailableError("adapter context must be fresh or fork");
+		throw new PiSubagentsV2UnavailableError(
+			"adapter context must be fresh or fork",
+		);
 	const eventBus = events.value as DelegationEventBus;
 	const onMethod = dataMethod(eventBus, "on");
 	const emitMethod = dataMethod(eventBus, "emit");
@@ -342,7 +353,10 @@ function validateContract(contract: PiSubagentsV2Contract): void {
 		);
 }
 
-function sameContract(left: PiSubagentsV2Contract, right: PiSubagentsV2Contract): boolean {
+function sameContract(
+	left: PiSubagentsV2Contract,
+	right: PiSubagentsV2Contract,
+): boolean {
 	return (
 		left.version === right.version &&
 		left.requestEvent === right.requestEvent &&
@@ -376,9 +390,10 @@ function parseUsage(value: JsonValue | undefined): WorkflowUsageV1 {
 	return value as unknown as WorkflowUsageV1;
 }
 
-function parseOptionalMetadata(
-	value: JsonObject,
-): { model?: string; thinking?: string } {
+function parseOptionalMetadata(value: JsonObject): {
+	model?: string;
+	thinking?: string;
+} {
 	const metadata: { model?: string; thinking?: string } = {};
 	if (value.model !== undefined) {
 		if (!validBoundedString(value.model) || value.model.length === 0)
@@ -430,7 +445,8 @@ function parseTerminal(attempt: Attempt, input: unknown): LeafRunnerTerminalV1 {
 		if (
 			value.version !== 2 ||
 			value.requestId !== attempt.requestId ||
-			(value.ownerRunId !== undefined && value.ownerRunId !== attempt.ownerRunId) ||
+			(value.ownerRunId !== undefined &&
+				value.ownerRunId !== attempt.ownerRunId) ||
 			(value.nodeId !== undefined && value.nodeId !== attempt.nodeId)
 		)
 			throw new Error("terminal identity mismatch");
@@ -470,7 +486,8 @@ function parseTerminal(attempt: Attempt, input: unknown): LeafRunnerTerminalV1 {
 	}
 	if (
 		value.exitCode !== undefined &&
-		(typeof value.exitCode !== "number" || !Number.isSafeInteger(value.exitCode))
+		(typeof value.exitCode !== "number" ||
+			!Number.isSafeInteger(value.exitCode))
 	)
 		throw new Error("invalid exitCode");
 	const metadata = parseOptionalMetadata(value);
@@ -513,7 +530,8 @@ function parseTerminal(attempt: Attempt, input: unknown): LeafRunnerTerminalV1 {
 			...metadata,
 		};
 	}
-	if (value.result !== undefined) throw new Error("noncompleted terminal has result");
+	if (value.result !== undefined)
+		throw new Error("noncompleted terminal has result");
 	const distinct = new Set([
 		"timed_out",
 		"cancelled",
@@ -547,7 +565,11 @@ function parseTerminal(attempt: Attempt, input: unknown): LeafRunnerTerminalV1 {
 	throw new Error(`unknown provider status ${boundedText(value.status, 128)}`);
 }
 
-function settle(hub: Hub, attempt: Attempt, terminal: LeafRunnerTerminalV1): void {
+function settle(
+	hub: Hub,
+	attempt: Attempt,
+	terminal: LeafRunnerTerminalV1,
+): void {
 	if (attempt.settled) return;
 	attempt.settled = true;
 	attempt.pendingProgress = undefined;
@@ -641,7 +663,10 @@ function parseProgress(attempt: Attempt, input: unknown): LeafProgressUpdateV1 {
 		"recentOutput",
 		"model",
 	] as const) {
-		if (value[field] !== undefined && !validBoundedString(value[field], MAX_PROGRESS_BYTES))
+		if (
+			value[field] !== undefined &&
+			!validBoundedString(value[field], MAX_PROGRESS_BYTES)
+		)
 			throw new Error(`invalid update ${field}`);
 	}
 	for (const field of ["toolCount", "durationMs", "tokens"] as const) {
@@ -657,24 +682,32 @@ function parseProgress(attempt: Attempt, input: unknown): LeafProgressUpdateV1 {
 		if (
 			!Array.isArray(value.recentOutputLines) ||
 			value.recentOutputLines.some(
-				(line) => typeof line !== "string" || byteLength(line) > MAX_PROGRESS_BYTES,
+				(line) =>
+					typeof line !== "string" || byteLength(line) > MAX_PROGRESS_BYTES,
 			)
 		)
 			throw new Error("invalid recentOutputLines");
 	}
 	if (value.recentTools !== undefined) {
-		if (!Array.isArray(value.recentTools)) throw new Error("invalid recentTools");
+		if (!Array.isArray(value.recentTools))
+			throw new Error("invalid recentTools");
 		for (const tool of value.recentTools) {
 			if (!isJsonObject(tool)) throw new Error("invalid recent tool");
 			exactKeys(tool, ["tool", "args"]);
-			if (!validBoundedString(tool.tool) || !validBoundedString(tool.args, MAX_PROGRESS_BYTES))
+			if (
+				!validBoundedString(tool.tool) ||
+				!validBoundedString(tool.args, MAX_PROGRESS_BYTES)
+			)
 				throw new Error("invalid recent tool");
 		}
 	}
 	let message = "Subagent working";
 	if (typeof value.recentOutput === "string" && value.recentOutput.length > 0)
 		message = value.recentOutput;
-	else if (typeof value.currentTool === "string" && value.currentTool.length > 0)
+	else if (
+		typeof value.currentTool === "string" &&
+		value.currentTool.length > 0
+	)
 		message = `Using ${value.currentTool}`;
 	return { message: boundedText(message, MAX_PROGRESS_BYTES) };
 }
@@ -780,7 +813,10 @@ function createHub(
 	return initializedHub;
 }
 
-function getHub(options: AdapterOptionsSnapshot, contract: PiSubagentsV2Contract): Hub {
+function getHub(
+	options: AdapterOptionsSnapshot,
+	contract: PiSubagentsV2Contract,
+): Hub {
 	if (attachingBuses.has(options.events))
 		throw new PiSubagentsV2UnavailableError(
 			"delegation event bus setup is already in progress",
@@ -815,10 +851,20 @@ function getHub(options: AdapterOptionsSnapshot, contract: PiSubagentsV2Contract
 	}
 }
 
-function structuredSchema(output: LeafRunnerRequestV1["output"]): ObjectSchemaV1 {
-	if (output.mode !== "structured") throw new Error("missing structured schema");
-	const cloned = cloneJson(output.schema, MAX_SCHEMA_BYTES, "structured schema", 32, 20_000);
-	if (!isJsonObject(cloned)) throw new Error("structured schema must be an object");
+function structuredSchema(
+	output: LeafRunnerRequestV1["output"],
+): ObjectSchemaV1 {
+	if (output.mode !== "structured")
+		throw new Error("missing structured schema");
+	const cloned = cloneJson(
+		output.schema,
+		MAX_SCHEMA_BYTES,
+		"structured schema",
+		32,
+		20_000,
+	);
+	if (!isJsonObject(cloned))
+		throw new Error("structured schema must be an object");
 	return cloned as unknown as ObjectSchemaV1;
 }
 
@@ -837,21 +883,28 @@ export function createPiSubagentsLeafAdapterCore(
 		if (owner.disposed)
 			return Promise.resolve(unavailable("pi-subagents adapter is disposed"));
 		if (hub.broken)
-			return Promise.resolve(unavailable("delegation event bus is unavailable"));
+			return Promise.resolve(
+				unavailable("delegation event bus is unavailable"),
+			);
 		if (request.signal.aborted)
 			return Promise.resolve({ status: "cancelled", usage: ZERO_USAGE });
 		let requestId: string;
 		do {
 			requestId = requestIdGenerator();
 			if (!validIdentity(requestId))
-				return Promise.resolve(contractFailure("request ID generator returned an invalid UUID"));
+				return Promise.resolve(
+					contractFailure("request ID generator returned an invalid UUID"),
+				);
 		} while (hub.attempts.has(requestId));
 		let result: JsonObject;
 		try {
 			result =
 				request.output.mode === "text"
 					? { kind: "text" }
-					: { kind: "structured", schema: structuredSchema(request.output) as unknown as JsonValue };
+					: {
+							kind: "structured",
+							schema: structuredSchema(request.output) as unknown as JsonValue,
+						};
 		} catch (error) {
 			return Promise.resolve(
 				contractFailure(safeErrorMessage(error, "invalid structured schema")),

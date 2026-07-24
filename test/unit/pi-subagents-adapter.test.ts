@@ -51,11 +51,13 @@ class FakeBus implements DelegationEventBus {
 	}
 }
 
-function request(overrides: Partial<LeafRunnerRequestV1> = {}): LeafRunnerRequestV1 {
+function request(
+	overrides: Partial<LeafRunnerRequestV1> = {},
+): LeafRunnerRequestV1 {
 	return {
 		identity: { runId: "run-1", nodeId: "step:only", stepId: "only" },
 		agent: "reviewer",
-		prompt: "{\"literal\":true}",
+		prompt: '{"literal":true}',
 		output: { mode: "text" },
 		limits: { timeoutMs: 1_000, maxTurns: 3, maxToolCalls: 0 },
 		signal: new AbortController().signal,
@@ -110,7 +112,7 @@ test("projects an exact V2 request including hard zero and preserves literal JSO
 			ownerRunId: "run-1",
 			nodeId: "step:only",
 			status: "completed",
-			result: { kind: "text", text: "{\"answer\":42}" },
+			result: { kind: "text", text: '{"answer":42}' },
 			usage,
 		});
 	};
@@ -124,7 +126,7 @@ test("projects an exact V2 request including hard zero and preserves literal JSO
 		ownerRunId: "run-1",
 		nodeId: "step:only",
 		agent: "reviewer",
-		task: "{\"literal\":true}",
+		task: '{"literal":true}',
 		context: "fresh",
 		cwd: "/workspace",
 		timeoutMs: 1_000,
@@ -134,7 +136,7 @@ test("projects an exact V2 request including hard zero and preserves literal JSO
 	});
 	assert.deepEqual(terminal, {
 		status: "completed",
-		result: { mode: "text", text: "{\"answer\":42}" },
+		result: { mode: "text", text: '{"answer":42}' },
 		usage,
 	});
 	assert.equal(bus.listenerCount(contract.responseEvent), 1);
@@ -172,7 +174,11 @@ test("maps structured values, effective metadata, every status, and usage", asyn
 			wire: { status: "failed", error: "ordinary", usage },
 			expected: {
 				status: "failed",
-				error: { code: "provider_failed", message: "ordinary", retryable: false },
+				error: {
+					code: "provider_failed",
+					message: "ordinary",
+					retryable: false,
+				},
 				usage,
 			},
 		},
@@ -180,7 +186,11 @@ test("maps structured values, effective metadata, every status, and usage", asyn
 			wire: { status: "acceptance_failed", error: "rejected", usage },
 			expected: {
 				status: "failed",
-				error: { code: "acceptance_failed", message: "rejected", retryable: false },
+				error: {
+					code: "acceptance_failed",
+					message: "rejected",
+					retryable: false,
+				},
 				usage,
 			},
 		},
@@ -273,10 +283,7 @@ test("fails matching malformed terminals instead of hanging and ignores V1 traff
 		bus.onEmit = (event, payload) => {
 			if (event !== contract.requestEvent) return;
 			bus.emit(contract.responseEvent, { version: 1, requestId: "legacy" });
-			bus.emit(
-				contract.responseEvent,
-				makeMalformed(responseFor(payload, {})),
-			);
+			bus.emit(contract.responseEvent, makeMalformed(responseFor(payload, {})));
 		};
 		const terminal = await adapter.leafRunner(request());
 		assert.equal(terminal.status, "failed");
@@ -324,7 +331,9 @@ test("locally cancels before a response and ignores duplicate and late terminals
 			);
 		}
 	};
-	const cancelled = await adapter.leafRunner(request({ signal: controller.signal }));
+	const cancelled = await adapter.leafRunner(
+		request({ signal: controller.signal }),
+	);
 	assert.deepEqual(cancelled, {
 		status: "cancelled",
 		usage: {
@@ -360,13 +369,15 @@ test("locally cancels before a response and ignores duplicate and late terminals
 			usage,
 		});
 		bus.emit(contract.responseEvent, terminal);
-		bus.emit(contract.responseEvent, { ...terminal, result: { kind: "text", text: "duplicate" } });
+		bus.emit(contract.responseEvent, {
+			...terminal,
+			result: { kind: "text", text: "duplicate" },
+		});
 		secondController.abort();
 	};
 	assert.equal(
-		(
-			await adapter.leafRunner(request({ signal: secondController.signal }))
-		).status,
+		(await adapter.leafRunner(request({ signal: secondController.signal })))
+			.status,
 		"completed",
 	);
 	assert.equal(
@@ -397,7 +408,10 @@ test("emits at most one cancel when abort and request emission failure combine",
 		bus.emitted.map(({ event }) => event),
 		[contract.requestEvent, contract.cancelEvent],
 	);
-	assert.equal((await adapter.leafRunner(request())).status, "unavailable_context");
+	assert.equal(
+		(await adapter.leafRunner(request())).status,
+		"unavailable_context",
+	);
 	adapter.dispose();
 });
 
@@ -488,7 +502,10 @@ test("shares two listeners across adapters and concurrent leaves and scopes disp
 	);
 	assert.equal(bus.handlerDeliveries.get(contract.responseEvent), 25);
 	assert.equal(bus.listenerCount(contract.responseEvent), 1);
-	assert.equal((await first.leafRunner(request())).status, "unavailable_context");
+	assert.equal(
+		(await first.leafRunner(request())).status,
+		"unavailable_context",
+	);
 	second.dispose();
 	assert.equal(bus.listenerCount(contract.responseEvent), 0);
 	assert.equal(bus.listenerCount(contract.updateEvent), 0);
@@ -523,8 +540,16 @@ test("forwards only bounded exact-tuple updates and swallows progress rejection"
 		if (event !== contract.requestEvent) return;
 		const exact = responseFor(payload, {});
 		bus.emit(contract.updateEvent, { ...exact, recentOutput: "working" });
-		bus.emit(contract.updateEvent, { ...exact, nodeId: "other", recentOutput: "wrong" });
-		bus.emit(contract.updateEvent, { ...exact, recentOutput: "bad", unknown: true });
+		bus.emit(contract.updateEvent, {
+			...exact,
+			nodeId: "other",
+			recentOutput: "wrong",
+		});
+		bus.emit(contract.updateEvent, {
+			...exact,
+			recentOutput: "bad",
+			unknown: true,
+		});
 		bus.emit(contract.updateEvent, { ...exact, currentTool: "read" });
 		bus.emit(
 			contract.responseEvent,
@@ -538,7 +563,8 @@ test("forwards only bounded exact-tuple updates and swallows progress rejection"
 		request({
 			progress: async (update) => {
 				updates.push(update.message);
-				if (update.message === "Using read") throw new Error("presentation failed");
+				if (update.message === "Using read")
+					throw new Error("presentation failed");
 			},
 		}),
 	);
@@ -831,13 +857,19 @@ test("contains hostile option and thrown-error getters", async () => {
 		});
 		throw hostile;
 	};
-	assert.equal((await adapter.leafRunner(request())).status, "unavailable_context");
+	assert.equal(
+		(await adapter.leafRunner(request())).status,
+		"unavailable_context",
+	);
 	assert.equal(messageGetterCalls, 0);
 	assert.deepEqual(
 		bus.emitted.map(({ event }) => event),
 		[contract.requestEvent, contract.cancelEvent],
 	);
-	assert.equal((await adapter.leafRunner(request())).status, "unavailable_context");
+	assert.equal(
+		(await adapter.leafRunner(request())).status,
+		"unavailable_context",
+	);
 	assert.equal(bus.emitted.length, 2);
 	adapter.dispose();
 });
@@ -846,12 +878,17 @@ test("poisons ambiguous partial subscription teardown without accumulating liste
 	class BrokenSetupBus extends FakeBus {
 		onCalls = 0;
 
-		override on(event: string, listener: (payload: unknown) => void): () => void {
+		override on(
+			event: string,
+			listener: (payload: unknown) => void,
+		): () => void {
 			this.onCalls += 1;
 			const unsubscribe = super.on(event, listener);
-			if (event === contract.updateEvent) throw new Error("partial update setup");
+			if (event === contract.updateEvent)
+				throw new Error("partial update setup");
 			return () => {
-				if (event === contract.responseEvent) throw new Error("teardown failed");
+				if (event === contract.responseEvent)
+					throw new Error("teardown failed");
 				unsubscribe();
 			};
 		}
@@ -888,7 +925,10 @@ test("blocks reentrant adapter creation before final unsubscribe begins", () => 
 		reentryError: unknown;
 		private attemptedReentry = false;
 
-		override on(event: string, listener: (payload: unknown) => void): () => void {
+		override on(
+			event: string,
+			listener: (payload: unknown) => void,
+		): () => void {
 			const unsubscribe = super.on(event, listener);
 			return () => {
 				unsubscribe();
@@ -904,7 +944,8 @@ test("blocks reentrant adapter creation before final unsubscribe begins", () => 
 						this.reentryError = error;
 					}
 				}
-				if (event === contract.responseEvent) throw new Error("unsubscribe failed");
+				if (event === contract.responseEvent)
+					throw new Error("unsubscribe failed");
 			};
 		}
 	}
@@ -971,7 +1012,10 @@ test("blocks reentrant adapter creation while the shared hub is attaching", () =
 		reentryError: unknown;
 		private attemptedReentry = false;
 
-		override on(event: string, listener: (payload: unknown) => void): () => void {
+		override on(
+			event: string,
+			listener: (payload: unknown) => void,
+		): () => void {
 			const unsubscribe = super.on(event, listener);
 			if (!this.attemptedReentry) {
 				this.attemptedReentry = true;
@@ -1020,10 +1064,13 @@ test("rejects duplicate event contracts and ignores eager subscription traffic",
 		PiSubagentsV2UnavailableError,
 	);
 	class EagerBus extends FakeBus {
-		override on(event: string, listener: (payload: unknown) => void): () => void {
-		const unsubscribe = super.on(event, listener);
-		listener({ version: 2, requestId: "eager-before-hub" });
-		return unsubscribe;
+		override on(
+			event: string,
+			listener: (payload: unknown) => void,
+		): () => void {
+			const unsubscribe = super.on(event, listener);
+			listener({ version: 2, requestId: "eager-before-hub" });
+			return unsubscribe;
 		}
 	}
 	const adapter = createPiSubagentsLeafAdapterCore(

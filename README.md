@@ -7,11 +7,13 @@ and a Pi tool/command adapter while leaving child-agent execution and policy in
 `pi-subagents`.
 
 **Status: strict restricted IR v1 parser, sequential/barriered-parallel/item-local
-pipeline execution, and the public delegation-v2 leaf adapter implemented.**
-The package identity, public IR and engine types, immutable definition parser,
-shared workflow semaphore, typed aligned execution seam, provider adapter,
-no-op extension entry point, tests, and CI exist. The Workflow tool/command and
-published npm package do not exist yet. The adapter is artifact-tested against
+pipeline execution, the public delegation-v2 leaf adapter, and internal strict
+workflow-source/audit-store modules are implemented.** The package identity,
+public IR and engine types, immutable definition parser, shared workflow
+semaphore, typed aligned execution seam, provider adapter, no-op extension
+entry point, tests, and CI exist. The source/store modules are not registered as
+a Pi tool or command. The Workflow tool/command and published npm package do
+not exist yet. The adapter is artifact-tested against
 reviewed provider commit `f936daa`, but a runtime `pi-subagents` dependency
 cannot be added until that provider seam is published. See
 [PLAN.md](PLAN.md) for the TDD and release contract.
@@ -43,6 +45,49 @@ for the release gates.
   adoption are blocked until the full foreground matrix is green.
 - **Identity:** full repository and package rename from `pi-workflows` to
   `pi-subagents-workflows`.
+
+## Internal workflow provenance and run audit slice
+
+The unregistered extension internals now resolve three explicit definition
+source kinds: inline JSON, exact saved names, and capability-gated user paths.
+Saved names are lowercase bounded identifiers and resolve non-recursively from
+only:
+
+```text
+<agent-dir>/pi-subagents-workflows/definitions/<name>.workflow.json
+<cwd>/.pi/workflows/<name>.workflow.json
+```
+
+A name present in both roots is rejected as ambiguous. File reads accept only
+regular `*.workflow.json` files up to 1 MiB, reject duplicate JSON keys, links,
+and unsafe encoding, and retain the exact accepted UTF-8 text and SHA-256 audit
+provenance. Reads detect observable path/content replacement before returning.
+Arbitrary path sources are denied unless the caller explicitly supplies the
+future user-command path capability; no model tool is registered yet.
+
+The internal foreground run store derives a session directory from the SHA-256
+of the caller-supplied stable Pi session identity and writes per-run
+`manifest.json`, `source.workflow.json`, `args.json`, and `journal.jsonl`, plus
+`result.json` only after settlement. Immutable files use atomic no-replace
+publication. Full leaf terminals remain in the append-only journal; the result
+file is a strictly validated terminal summary (status, final ref, aggregate
+usage/counters, and optional workflow error) capped at 1 MiB, so it neither
+duplicates retained payloads nor becomes replay input. The journal is streamed
+with a 512 MiB file ceiling and 4 MiB per-record ceiling, omits transient
+`leaf_progress`, is inspection-only, and is never execution or recovery input.
+Validated listing APIs cap each scanned directory at 10,000 entries,
+stream-check the journal, and expose only saved-definition provenance and run
+audit summaries.
+
+A stored run without a result is labeled `incomplete (not running; rerun
+explicitly)`. These files do **not** provide resume, replay, cache reuse,
+adoption, daemon survival, detached execution, or exactly-once external
+effects. Running also never creates or changes saved definitions. POSIX modes
+are restrictive where supported, but this foreground audit layer is not a
+sandbox against an active same-account/privileged process that swaps filesystem
+ancestors between Node path operations; native Windows reparse/ACL and hostile
+same-UID namespace hardening remain explicit Phase 14 release tests. Audit files
+can contain prompts and retained results and are not automatically deleted.
 
 ## Provider adapter
 
@@ -205,10 +250,12 @@ values, unsupported policies, and malformed schemas or limits fail parsing.
 8. Add the public `pi-subagents` `LeafRunner` adapter. **Implemented and green
    against the reviewed provider artifact; dependency publication remains
    blocked upstream.**
-9. Add the foreground Pi tool and command adapter.
-10. Pass packed-package, security, provider-matrix, Node 24 Ubuntu/Windows, and
+9. Add strict definition provenance and the foreground-only run audit store.
+   **Internal source/store slice implemented; no Pi registration exists.**
+10. Add the shared foreground run service, renderer, Pi tool, and command.
+11. Pass packed-package, security, provider-matrix, Node 24 Ubuntu/Windows, and
     real-extension release gates.
-11. Only then open a separately reviewed daemon design phase.
+12. Only then open a separately reviewed daemon design phase.
 
 See the [full build contract](PLAN.md#phases-and-red-green-slices) for branches,
 commit boundaries, validation gates, stop rules, and the one-writer policy.
