@@ -218,12 +218,14 @@ makes them green.
 
 Commit: `feat(ir): add strict workflow definition v1`
 
-### 9. Sequential engine and outcomes: red-green
+### 9. Sequential engine and outcomes: red-green (complete)
 
 Test and implement `executeWorkflow(def, args, leafRunner, hooks)`: argument
 validation, deterministic refs/templates, sequential order, typed outcomes,
 identity alignment, usage, limits, cancellation, hook order, and final-result
 selection. Authoritative failures are discriminated records, never `null`.
+Parallel and pipeline nodes remain parsed but return typed `unsupported_step`
+failures without dispatch until phases 10 and 11.
 
 Commit: `feat(engine): execute sequential workflows with typed outcomes`
 
