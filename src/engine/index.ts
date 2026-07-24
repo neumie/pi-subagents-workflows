@@ -1,2 +1,29 @@
-// Public engine scaffold. No workflow execution API exists yet.
-export {};
+export { executeWorkflow } from "./execute-workflow.ts";
+export type {
+	AgentStepOutcomeV1,
+	CompletedLeafRunnerTerminalV1,
+	DistinctTerminalLeafOutcomeV1,
+	FailedLeafOutcomeV1,
+	FailedLeafRunnerTerminalV1,
+	LeafErrorV1,
+	LeafIdentityV1,
+	LeafOutcomeV1,
+	LeafProgressUpdateV1,
+	LeafResultV1,
+	LeafRunner,
+	LeafRunnerRequestV1,
+	LeafRunnerStatusV1,
+	LeafRunnerTerminalV1,
+	LeafSkipReasonV1,
+	NonCompletedLeafRunnerTerminalV1,
+	SkippedLeafOutcomeV1,
+	StepOutcomeV1,
+	SucceededLeafOutcomeV1,
+	UnsupportedStepOutcomeV1,
+	WorkflowCountersV1,
+	WorkflowErrorV1,
+	WorkflowEventV1,
+	WorkflowHooksV1,
+	WorkflowOutcomeV1,
+	WorkflowUsageV1,
+} from "./types.ts";

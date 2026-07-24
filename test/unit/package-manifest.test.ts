@@ -163,7 +163,9 @@ test("dry-run tarball contains only declared source and documentation", () => {
     "PLAN.md",
     "README.md",
     "package.json",
+    "src/engine/execute-workflow.ts",
     "src/engine/index.ts",
+    "src/engine/types.ts",
     "src/extension/index.ts",
     "src/index.ts",
     "src/ir/index.ts",
@@ -210,8 +212,9 @@ test("packed package imports every public entry through Jiti from a clean instal
       const ir = await jiti.import("pi-subagents-workflows/ir");
       const engine = await jiti.import("pi-subagents-workflows/engine");
       if (typeof root.parseWorkflowDefinition !== "function") throw new Error("missing root parser");
+      if (typeof root.executeWorkflow !== "function") throw new Error("missing root engine");
       if (typeof ir.parseWorkflowDefinition !== "function") throw new Error("missing IR parser");
-      if (engine === null || typeof engine !== "object") throw new Error("missing engine module");
+      if (typeof engine.executeWorkflow !== "function") throw new Error("missing engine export");
       const parsed = root.parseWorkflowDefinition({
         version: 1,
         id: "packed",
@@ -228,6 +231,13 @@ test("packed package imports every public entry through Jiti from a clean instal
         result: { ref: "step", stepId: "only" }
       });
       if (parsed.id !== "packed") throw new Error("packed parser returned the wrong definition");
+      const usage = { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, cost: 0, turns: 1, toolCalls: 0, durationMs: 1 };
+      const outcome = await engine.executeWorkflow(parsed, {}, async () => ({
+        status: "completed",
+        result: { mode: "text", text: "packed" },
+        usage
+      }), {});
+      if (outcome.status !== "succeeded") throw new Error("packed engine did not execute");
     `);
     const imported = spawnSync(process.execPath, [runner], {
       cwd: temporaryDirectory,

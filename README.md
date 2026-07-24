@@ -6,10 +6,12 @@ strict JSON workflow definition format, a deterministic foreground scheduler,
 and a Pi tool/command adapter while leaving child-agent execution and policy in
 `pi-subagents`.
 
-**Status: strict restricted IR v1 parser implemented.** The package identity,
-public IR types, immutable definition parser, no-op extension entry point,
-tests, and CI exist. The workflow engine, provider adapter, Workflow
-tool/command, and published npm package do not exist yet. See
+**Status: strict restricted IR v1 parser and sequential foreground engine implemented.**
+The package identity, public IR and engine types, immutable definition parser,
+typed sequential execution seam, no-op extension entry point, tests, and CI
+exist. Parallel/pipeline scheduling intentionally returns `unsupported_step` in
+this slice. The provider adapter, Workflow tool/command, and published npm
+package do not exist yet. See
 [PLAN.md](PLAN.md) for the TDD and release contract.
 
 ## Current branches and identity
@@ -140,10 +142,12 @@ bounded output modes, and one final-result reference.
 }
 ```
 
-IR v1 supports sequential `agent` steps, barriered `parallel` cohorts, and
-true item-local `pipeline` stages. Unknown fields, implicit string references,
-forward or invalid references, missing template values, unsupported policies,
-and malformed schemas or limits fail parsing.
+IR v1 parses sequential `agent` steps, barriered `parallel` cohorts, and true
+item-local `pipeline` stages. The current foreground engine executes sequential
+agent steps only; parsed parallel and pipeline steps return a typed
+`unsupported_step` failure until phases 10 and 11 land. Unknown fields, implicit
+string references, forward or invalid references, missing template values,
+unsupported policies, and malformed schemas or limits fail parsing.
 
 ## Phased roadmap
 
@@ -178,9 +182,10 @@ npm test
 npm run pack:check
 ```
 
-`npm test` runs the unit parser/manifest/tarball contracts and strict
-typecheck. There are no integration or end-to-end suites yet because the
-engine, provider adapter, and Workflow tool/command are not implemented.
+`npm test` runs the unit parser, sequential-engine, manifest/tarball contracts,
+and strict typecheck. The packed-package test imports and executes the public
+engine seam. There are no provider integration or end-to-end suites yet because
+the provider adapter and Workflow tool/command are not implemented.
 
 ## Research
 

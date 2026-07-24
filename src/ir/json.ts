@@ -42,20 +42,35 @@ export function assertSafeString(value: string, path: string): void {
   if (hasUnpairedSurrogate(value)) reject(path, "string contains an unpaired surrogate");
 }
 
-const maximumDefinitionBytes = 256 * 1024;
 const rootDefinitionDepth = 1;
-const maximumDefinitionDepth = 32;
+
+export interface SafeJsonCloneLimits {
+  readonly maximumBytes: number;
+  readonly maximumDepth: number;
+  readonly maximumEntries: number;
+  readonly subject: string;
+  readonly sizeLabel: string;
+}
+
+const definitionCloneLimits: SafeJsonCloneLimits = {
+  maximumBytes: 256 * 1024,
+  maximumDepth: 32,
+  maximumEntries: 20_000,
+  subject: "definition",
+  sizeLabel: "256 KiB",
+};
 
 interface CloneState {
   bytes: number;
   entries: number;
   readonly active: WeakSet<object>;
+  readonly limits: SafeJsonCloneLimits;
 }
 
 function addBytes(state: CloneState, bytes: number): void {
   state.bytes += bytes;
-  if (state.bytes > maximumDefinitionBytes) {
-    reject("$", "canonical definition size exceeds 256 KiB");
+  if (state.bytes > state.limits.maximumBytes) {
+    reject("$", `canonical ${state.limits.subject} size exceeds ${state.limits.sizeLabel}`);
   }
 }
 
@@ -87,11 +102,21 @@ function addJsonStringBytes(state: CloneState, value: string): void {
   addBytes(state, 1);
 }
 
-export function cloneSafeJson(input: unknown): JsonValue {
-  const state: CloneState = { bytes: 0, entries: 0, active: new WeakSet<object>() };
+export function cloneSafeJson(
+  input: unknown,
+  limits: SafeJsonCloneLimits = definitionCloneLimits,
+): JsonValue {
+  const state: CloneState = {
+    bytes: 0,
+    entries: 0,
+    active: new WeakSet<object>(),
+    limits,
+  };
 
   const visit = (value: unknown, path: string, depth: number): JsonValue => {
-    if (depth > maximumDefinitionDepth) reject(path, "definition nesting depth exceeds 32");
+    if (depth > limits.maximumDepth) {
+      reject(path, `${limits.subject} nesting depth exceeds ${limits.maximumDepth}`);
+    }
     if (value === null) {
       addBytes(state, 4);
       return value;
@@ -159,7 +184,9 @@ export function cloneSafeJson(input: unknown): JsonValue {
             reject(`${path}[${index}]`, "array entries must be enumerable data properties");
           }
           state.entries += 1;
-          if (state.entries > 20_000) reject(path, "definition entries exceed 20000");
+          if (state.entries > limits.maximumEntries) {
+            reject(path, `${limits.subject} entries exceed ${limits.maximumEntries}`);
+          }
           if (index > 0) addBytes(state, 1);
           output.push(visit(descriptor.value, `${path}[${index}]`, depth + 1));
         }
@@ -186,7 +213,9 @@ export function cloneSafeJson(input: unknown): JsonValue {
           reject(childPath(path, key), "object properties must be enumerable data properties");
         }
         state.entries += 1;
-        if (state.entries > 20_000) reject(path, "definition entries exceed 20000");
+        if (state.entries > limits.maximumEntries) {
+          reject(path, `${limits.subject} entries exceed ${limits.maximumEntries}`);
+        }
         if (entryIndex > 0) addBytes(state, 1);
         addJsonStringBytes(state, key);
         addBytes(state, 1);
