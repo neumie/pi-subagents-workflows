@@ -242,12 +242,19 @@ remain typed unsupported until phase 11.
 
 Commit: `feat(engine): add barriered parallel agent tasks`
 
-### 11. Item-local pipeline engine: red-green
+### 11. Item-local pipeline engine: red-green (complete)
 
-First prove that one item enters stage 2 while another is still in stage 1,
-failed lanes do not advance, supported policy is honored, and output stays
-item/stage aligned. Then implement pipelines using the same semaphore and
-limits.
+Controlled public engine tests prove item-local advancement without a stage
+barrier, serial same-item stages, shared fair FIFO admission, stable item/stage
+identity, exact local references, stop-item propagation, source-order terminal
+accounting, atomic cumulative item/call reservations, bounded group projection,
+final group semantics, cancellation and hook-failure alignment, and timeout
+permit cleanup. Pipelines use the same semaphore, limits, result-size formula,
+and progress bounds as every other leaf kind. Terminal validation caps every
+reported usage field at
+`floor(Number.MAX_SAFE_INTEGER / definition.limits.maxCalls)` before a pipeline
+lane can advance, ensuring that at most `maxCalls` accepted usages cannot
+overflow later source-order aggregation.
 
 Commit: `feat(engine): add item-local pipeline stages`
 

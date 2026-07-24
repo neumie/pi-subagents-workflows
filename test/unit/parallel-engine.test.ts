@@ -234,7 +234,8 @@ test("parallel completion is a full barrier with source-aligned outcomes, stable
 	});
 });
 
-test("parallel usage accounting and terminal outcomes are deterministic in source order", async () => {
+test("parallel usage caps and terminal outcomes are deterministic in source order", async () => {
+	const maximumUsageValue = Math.floor(Number.MAX_SAFE_INTEGER / 4);
 	async function run(completionOrder: readonly string[]) {
 		const releases = new Map<
 			string,
@@ -243,8 +244,13 @@ test("parallel usage accounting and terminal outcomes are deterministic in sourc
 		const terminalTaskIds: string[] = [];
 		const execution = executeWorkflow(
 			parallelDefinition({
-				concurrency: 2,
-				tasks: [task("a"), task("b")],
+				concurrency: 4,
+				tasks: [
+					task("boundary"),
+					task("input-over"),
+					task("cost-over"),
+					task("duration-over"),
+				],
 			}),
 			{},
 			async (request) =>
@@ -260,11 +266,22 @@ test("parallel usage accounting and terminal outcomes are deterministic in sourc
 		);
 		await new Promise((resolve) => setImmediate(resolve));
 		const terminals = {
-			a: completed("A", {
-				usage: { ...usage, input: Number.MAX_SAFE_INTEGER, cost: 1e16 },
+			boundary: completed("boundary", {
+				usage: {
+					...usage,
+					input: maximumUsageValue,
+					cost: maximumUsageValue,
+					durationMs: maximumUsageValue,
+				},
 			}),
-			b: completed("B", {
-				usage: { ...usage, input: 1, cost: 1 },
+			"input-over": completed("input-over", {
+				usage: { ...usage, input: maximumUsageValue + 1 },
+			}),
+			"cost-over": completed("cost-over", {
+				usage: { ...usage, cost: maximumUsageValue + 1 },
+			}),
+			"duration-over": completed("duration-over", {
+				usage: { ...usage, durationMs: maximumUsageValue + 1 },
 			}),
 		};
 		for (const id of completionOrder) {
@@ -275,8 +292,14 @@ test("parallel usage accounting and terminal outcomes are deterministic in sourc
 		return { outcome: await execution, terminalTaskIds };
 	}
 
-	const forward = await run(["a", "b"]);
-	const reverse = await run(["b", "a"]);
+	const sourceOrder = [
+		"boundary",
+		"input-over",
+		"cost-over",
+		"duration-over",
+	] as const;
+	const forward = await run(sourceOrder);
+	const reverse = await run([...sourceOrder].reverse());
 	for (const result of [forward, reverse]) {
 		assert.deepEqual(
 			parallelAt(result.outcome).slots.map((leaf) => [
@@ -285,19 +308,22 @@ test("parallel usage accounting and terminal outcomes are deterministic in sourc
 				leaf.status === "failed" ? leaf.error.code : undefined,
 			]),
 			[
-				["a", "succeeded", undefined],
-				["b", "failed", "provider_contract_violation"],
+				["boundary", "succeeded", undefined],
+				["input-over", "failed", "provider_contract_violation"],
+				["cost-over", "failed", "provider_contract_violation"],
+				["duration-over", "failed", "provider_contract_violation"],
 			],
 		);
 		assert.deepEqual(result.outcome.usage, {
 			...usage,
-			input: Number.MAX_SAFE_INTEGER,
-			cost: 1e16,
+			input: maximumUsageValue,
+			cost: maximumUsageValue,
+			durationMs: maximumUsageValue,
 		});
-		assert.deepEqual(result.terminalTaskIds, ["a", "b"]);
+		assert.deepEqual(result.terminalTaskIds, sourceOrder);
 		assert.deepEqual(result.outcome.counters, {
-			reservedCallSlots: 2,
-			actualLeafCalls: 2,
+			reservedCallSlots: 4,
+			actualLeafCalls: 4,
 			admittedItems: 0,
 		});
 	}

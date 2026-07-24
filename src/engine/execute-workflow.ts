@@ -9,9 +9,9 @@ import {
 import { isParsedWorkflowDefinition } from "../ir/parser.ts";
 import type {
 	AgentStepV1,
-	FinalRefV1,
 	JsonValue,
 	ParallelTaskV1,
+	PipelineStageV1,
 	RefV1,
 	WorkflowDefinitionV1,
 } from "../ir/index.ts";
@@ -25,8 +25,9 @@ import type {
 	LeafRunner,
 	LeafRunnerTerminalV1,
 	ParallelStepOutcomeV1,
+	PipelineItemOutcomeV1,
+	PipelineStepOutcomeV1,
 	StepOutcomeV1,
-	UnsupportedStepOutcomeV1,
 	WorkflowErrorV1,
 	WorkflowEventV1,
 	WorkflowHooksV1,
@@ -34,7 +35,9 @@ import type {
 	WorkflowUsageV1,
 } from "./types.ts";
 
-type LeafDefinitionV1 = AgentStepV1 | ParallelTaskV1;
+type LeafDefinitionV1 = AgentStepV1 | ParallelTaskV1 | PipelineStageV1;
+type GroupStepOutcomeV1 = ParallelStepOutcomeV1 | PipelineStepOutcomeV1;
+type PriorStepOutcomeV1 = AgentStepOutcomeV1 | GroupStepOutcomeV1;
 
 const ZERO_USAGE: WorkflowUsageV1 = Object.freeze({
 	input: 0,
@@ -131,11 +134,12 @@ function freezeObservable<T>(value: T): T {
 function skipped(
 	identity: LeafIdentityV1,
 	reason:
+		| "upstream_failed"
 		| "unavailable_reference"
 		| "not_admitted"
 		| "prompt_too_large"
 		| "cancelled",
-	reference?: FinalRefV1,
+	reference?: RefV1,
 ): LeafOutcomeV1 {
 	return reference === undefined
 		? { status: "skipped", identity, usage: ZERO_USAGE, reason }
@@ -198,6 +202,7 @@ function exactKeys(
 function validateUsage(
 	value: JsonValue,
 	limits: AgentStepV1["limits"],
+	maximumUsageValue: number,
 ): WorkflowUsageV1 {
 	if (!isRecord(value))
 		throw new ProviderContractFailure("usage must be a plain object");
@@ -217,6 +222,11 @@ function validateUsage(
 		if (typeof item !== "number" || !Number.isFinite(item) || item < 0) {
 			throw new ProviderContractFailure(
 				`usage.${field} must be finite and nonnegative`,
+			);
+		}
+		if (item > maximumUsageValue) {
+			throw new ProviderContractFailure(
+				`usage.${field} exceeds the effective per-leaf usage cap`,
 			);
 		}
 	}
@@ -327,6 +337,7 @@ function validateTerminal(
 	step: LeafDefinitionV1,
 	identity: LeafIdentityV1,
 	maximumResultBytes: number,
+	maximumUsageValue: number,
 ): LeafOutcomeV1 {
 	let cloned: JsonValue;
 	try {
@@ -356,7 +367,11 @@ function validateTerminal(
 		"thinking",
 		"error",
 	]);
-	const usage = validateUsage(cloned.usage as JsonValue, step.limits);
+	const usage = validateUsage(
+		cloned.usage as JsonValue,
+		step.limits,
+		maximumUsageValue,
+	);
 	if (
 		cloned.model !== undefined &&
 		(typeof cloned.model !== "string" || utf8Bytes(cloned.model) > 1024)
@@ -468,7 +483,7 @@ function cloneInvocationArgs(
 		);
 		if (issue !== undefined) throw new Error(issue);
 	}
-	return cloned;
+	return freezeObservable(cloned);
 }
 
 function progressEvent(
@@ -613,6 +628,23 @@ function parallelIdentity(
 	});
 }
 
+function pipelineIdentity(
+	runId: string,
+	stepId: string,
+	itemIndex: number,
+	stageIndex: number,
+	stageId: string,
+): LeafIdentityV1 {
+	return Object.freeze({
+		runId,
+		nodeId: `pipeline:${stepId}:item:${itemIndex}:stage:${stageId}`,
+		stepId,
+		itemIndex,
+		stageIndex,
+		stageId,
+	});
+}
+
 function projectedLeafValue(leaf: LeafOutcomeV1): JsonValue | undefined {
 	if (leaf.status !== "succeeded") return undefined;
 	return leaf.result.mode === "text" ? leaf.result.text : leaf.result.value;
@@ -652,24 +684,49 @@ function parallelProjection(outcome: ParallelStepOutcomeV1): JsonValue {
 	};
 }
 
+function pipelineProjection(outcome: PipelineStepOutcomeV1): JsonValue {
+	return {
+		items: outcome.items.map((item) => ({
+			index: item.index,
+			status: item.status,
+			stages: item.stages.map((leaf) => {
+				const value = projectedLeafValue(leaf);
+				const error = projectedLeafError(leaf);
+				return {
+					stageId: leaf.identity.stageId!,
+					status: leaf.status,
+					...(value === undefined ? {} : { value }),
+					...(error === undefined ? {} : { error }),
+				};
+			}),
+		})),
+	};
+}
+
+interface PipelineLocalValues {
+	readonly item: JsonValue;
+	readonly index: number;
+	readonly previous?: JsonValue;
+}
+
 function referenceIdentity(reference: RefV1): string {
 	if (reference.ref === "arg") return `arg:${reference.name}`;
 	if (reference.ref === "step") return `step:${reference.stepId}`;
 	if (reference.ref === "task")
 		return `task:${reference.stepId}:${reference.taskId}`;
-	throw new Error(
-		`local reference ${reference.ref} reached a non-pipeline leaf`,
-	);
+	return `local:${reference.ref}`;
 }
 
 function unavailableReference(
 	reference: RefV1,
-	prior: ReadonlyMap<string, AgentStepOutcomeV1 | ParallelStepOutcomeV1>,
-): FinalRefV1 | undefined {
+	prior: ReadonlyMap<string, PriorStepOutcomeV1>,
+	local?: PipelineLocalValues,
+): RefV1 | undefined {
 	if (reference.ref === "arg") return undefined;
 	if (reference.ref === "step") {
 		const producer = prior.get(reference.stepId);
-		if (producer?.type === "parallel") return undefined;
+		if (producer?.type === "parallel" || producer?.type === "pipeline")
+			return undefined;
 		return producer?.type === "agent" &&
 			projectedLeafValue(producer.leaf) !== undefined
 			? undefined
@@ -687,22 +744,25 @@ function unavailableReference(
 			? undefined
 			: reference;
 	}
-	throw new Error(
-		`local reference ${reference.ref} reached a non-pipeline leaf`,
-	);
+	if (local === undefined)
+		throw new Error(`local reference ${reference.ref} reached a non-pipeline leaf`);
+	if (reference.ref === "previous" && local.previous === undefined)
+		return reference;
+	return undefined;
 }
 
 function resolveAvailableReference(
 	reference: RefV1,
 	args: Readonly<Record<string, JsonValue>>,
-	prior: ReadonlyMap<string, AgentStepOutcomeV1 | ParallelStepOutcomeV1>,
+	prior: ReadonlyMap<string, PriorStepOutcomeV1>,
+	local?: PipelineLocalValues,
 ): JsonValue {
 	if (reference.ref === "arg") return args[reference.name]!;
 	if (reference.ref === "step") {
 		const producer = prior.get(reference.stepId)!;
-		return producer.type === "parallel"
-			? parallelProjection(producer)
-			: projectedLeafValue(producer.leaf)!;
+		if (producer.type === "parallel") return parallelProjection(producer);
+		if (producer.type === "pipeline") return pipelineProjection(producer);
+		return projectedLeafValue(producer.leaf)!;
 	}
 	if (reference.ref === "task") {
 		const producer = prior.get(reference.stepId)!;
@@ -713,22 +773,25 @@ function resolveAvailableReference(
 		)!;
 		return projectedLeafValue(leaf)!;
 	}
-	throw new Error(
-		`local reference ${reference.ref} reached a non-pipeline leaf`,
-	);
+	if (local === undefined)
+		throw new Error(`local reference ${reference.ref} reached a non-pipeline leaf`);
+	if (reference.ref === "item") return local.item;
+	if (reference.ref === "index") return local.index;
+	return local.previous!;
 }
 
 function renderLeafPrompt(
 	leaf: LeafDefinitionV1,
 	args: Readonly<Record<string, JsonValue>>,
-	prior: ReadonlyMap<string, AgentStepOutcomeV1 | ParallelStepOutcomeV1>,
-): { prompt?: string; unavailable?: FinalRefV1; tooLarge?: true } {
-	const availability = new Map<string, FinalRefV1 | null>();
+	prior: ReadonlyMap<string, PriorStepOutcomeV1>,
+	local?: PipelineLocalValues,
+): { prompt?: string; unavailable?: RefV1; tooLarge?: true } {
+	const availability = new Map<string, RefV1 | null>();
 	for (const reference of Object.values(leaf.prompt.values)) {
 		const identity = referenceIdentity(reference);
 		let unavailable = availability.get(identity);
 		if (unavailable === undefined) {
-			unavailable = unavailableReference(reference, prior) ?? null;
+			unavailable = unavailableReference(reference, prior, local) ?? null;
 			availability.set(identity, unavailable);
 		}
 		if (unavailable !== null) return { unavailable };
@@ -753,7 +816,7 @@ function renderLeafPrompt(
 		if (rendered === undefined) {
 			let value = resolvedValues.get(identity);
 			if (value === undefined) {
-				value = resolveAvailableReference(reference, args, prior);
+				value = resolveAvailableReference(reference, args, prior, local);
 				resolvedValues.set(identity, value);
 			}
 			const text =
@@ -836,15 +899,21 @@ async function emitMeta(
 	signal?: AbortSignal,
 	identity?: LeafIdentityV1,
 ): Promise<void> {
-	const taskFields =
-		identity?.taskId === undefined
-			? {}
-			: { taskId: identity.taskId, slot: identity.slot! };
+	const identityFields =
+		identity?.taskId !== undefined
+			? { taskId: identity.taskId, slot: identity.slot! }
+			: identity?.stageId !== undefined
+				? {
+						itemIndex: identity.itemIndex!,
+						stageIndex: identity.stageIndex!,
+						stageId: identity.stageId,
+					}
+				: {};
 	if (meta?.phase !== undefined) {
 		await emitter.emit({
 			type: "phase",
 			stepId,
-			...taskFields,
+			...identityFields,
 			phase: meta.phase,
 		});
 	}
@@ -853,7 +922,7 @@ async function emitMeta(
 		await emitter.emit({
 			type: "log",
 			stepId,
-			...taskFields,
+			...identityFields,
 			message: meta.log,
 		});
 	}
@@ -863,16 +932,18 @@ async function executeScheduledLeaf(
 	leafDefinition: LeafDefinitionV1,
 	identity: LeafIdentityV1,
 	args: Readonly<Record<string, JsonValue>>,
-	prior: ReadonlyMap<string, AgentStepOutcomeV1 | ParallelStepOutcomeV1>,
+	prior: ReadonlyMap<string, PriorStepOutcomeV1>,
 	leafRunner: LeafRunner,
 	emitter: EventEmitter,
 	semaphore: FifoSemaphore,
 	workflowSignal: AbortSignal,
 	counters: MutableCounters,
 	maximumResultBytes: number,
+	maximumUsageValue: number,
+	local?: PipelineLocalValues,
 ): Promise<LeafOutcomeV1> {
 	if (workflowSignal.aborted) return skipped(identity, "cancelled");
-	const rendered = renderLeafPrompt(leafDefinition, args, prior);
+	const rendered = renderLeafPrompt(leafDefinition, args, prior, local);
 	if (rendered.unavailable !== undefined) {
 		return skipped(identity, "unavailable_reference", rendered.unavailable);
 	}
@@ -989,6 +1060,7 @@ async function executeScheduledLeaf(
 					leafDefinition,
 					identity,
 					maximumResultBytes,
+					maximumUsageValue,
 				);
 			} catch (error) {
 				return providerContractOutcome(identity, error);
@@ -1012,7 +1084,7 @@ async function executeScheduledWorkflow(
 	runId: string,
 ): Promise<WorkflowOutcomeV1> {
 	const steps: StepOutcomeV1[] = [];
-	const prior = new Map<string, AgentStepOutcomeV1 | ParallelStepOutcomeV1>();
+	const prior = new Map<string, PriorStepOutcomeV1>();
 	const counters: MutableCounters = {
 		reservedCallSlots: 0,
 		actualLeafCalls: 0,
@@ -1021,6 +1093,9 @@ async function executeScheduledWorkflow(
 	const maximumResultBytes = Math.min(
 		MIB,
 		Math.floor(WORKFLOW_SUCCESS_PAYLOAD_BUDGET / definition.limits.maxCalls),
+	);
+	const maximumUsageValue = Math.floor(
+		Number.MAX_SAFE_INTEGER / definition.limits.maxCalls,
 	);
 	let aggregate = ZERO_USAGE;
 	let callerCancelled = false;
@@ -1138,6 +1213,7 @@ async function executeScheduledWorkflow(
 		const settleRawLeaf = async (
 			leafDefinition: LeafDefinitionV1,
 			identity: LeafIdentityV1,
+			local?: PipelineLocalValues,
 		): Promise<LeafOutcomeV1> => {
 			try {
 				return await executeScheduledLeaf(
@@ -1151,6 +1227,8 @@ async function executeScheduledWorkflow(
 					workflowController.signal,
 					counters,
 					maximumResultBytes,
+					maximumUsageValue,
+					local,
 				);
 			} catch (error) {
 				if (!(error instanceof HookFailure)) throw error;
@@ -1192,24 +1270,140 @@ async function executeScheduledWorkflow(
 
 		for (const candidate of definition.steps) {
 			if (candidate.type === "pipeline") {
-				const error = workflowError(
-					"unsupported_step",
-					`pipeline step ${candidate.id} is not supported by this engine`,
+				const itemValues = args[candidate.items.name];
+				if (!Array.isArray(itemValues))
+					throw new Error("validated pipeline items are not an array");
+				const identities = itemValues.map((_item, itemIndex) =>
+					candidate.stages.map((stage, stageIndex) =>
+						pipelineIdentity(
+							runId,
+							candidate.id,
+							itemIndex,
+							stageIndex,
+							stage.id,
+						),
+					),
 				);
-				const unsupported: UnsupportedStepOutcomeV1 = {
-					type: "unsupported",
+				let groupError: WorkflowErrorV1 | undefined;
+				let materialized: LeafOutcomeV1[][];
+				if (workflowController.signal.aborted) {
+					materialized = [];
+					for (const lane of identities) {
+						const stages: LeafOutcomeV1[] = [];
+						for (const identity of lane)
+							stages.push(await accountLeaf(skipped(identity, "cancelled")));
+						materialized.push(stages);
+					}
+				} else {
+					const itemCount = itemValues.length;
+					const callSlots = itemCount * candidate.stages.length;
+					const exceedsItems =
+						counters.admittedItems + itemCount > definition.limits.maxItems;
+					const exceedsCalls =
+						counters.reservedCallSlots + callSlots >
+						definition.limits.maxCalls;
+					if (exceedsItems || exceedsCalls) {
+						groupError = workflowError(
+							"limit_exceeded",
+							exceedsItems
+								? `pipeline step ${candidate.id} would exceed maxItems`
+								: `pipeline step ${candidate.id} would exceed maxCalls`,
+						);
+						materialized = [];
+						for (const lane of identities) {
+							const stages: LeafOutcomeV1[] = [];
+							for (const identity of lane)
+								stages.push(
+									await accountLeaf(skipped(identity, "not_admitted")),
+								);
+							materialized.push(stages);
+						}
+					} else {
+						counters.admittedItems += itemCount;
+						counters.reservedCallSlots += callSlots;
+						try {
+							await emitMeta(
+								emitter,
+								candidate.id,
+								candidate.meta,
+								workflowController.signal,
+							);
+						} catch (error) {
+							if (!(error instanceof HookFailure)) throw error;
+							hookFailure ??= error;
+							abortWorkflow(error);
+						}
+						const rawLanes = await Promise.all(
+							itemValues.map(async (item, itemIndex) => {
+								const stages: LeafOutcomeV1[] = [];
+								let previous: JsonValue | undefined;
+								for (
+									let stageIndex = 0;
+									stageIndex < candidate.stages.length;
+									stageIndex += 1
+								) {
+									const stage = candidate.stages[stageIndex]!;
+									const raw = await settleRawLeaf(
+										stage,
+										identities[itemIndex]![stageIndex]!,
+										{
+											item,
+											index: itemIndex,
+											...(previous === undefined ? {} : { previous }),
+										},
+									);
+									stages.push(raw);
+									if (raw.status !== "succeeded") {
+										const reason = workflowController.signal.aborted
+											? "cancelled"
+											: "upstream_failed";
+										for (
+											let skippedIndex = stageIndex + 1;
+											skippedIndex < candidate.stages.length;
+											skippedIndex += 1
+										) {
+											stages.push(
+												skipped(
+													identities[itemIndex]![skippedIndex]!,
+													reason,
+												),
+											);
+										}
+										break;
+									}
+									previous = projectedLeafValue(raw);
+								}
+								return stages;
+							}),
+						);
+						materialized = [];
+						for (const rawLane of rawLanes) {
+							const stages: LeafOutcomeV1[] = [];
+							for (const raw of rawLane)
+								stages.push(await accountLeaf(raw));
+							materialized.push(stages);
+						}
+					}
+				}
+				const items: PipelineItemOutcomeV1[] = materialized.map(
+					(stages, index) => ({
+						index,
+						status:
+							stages.find((stage) => stage.status !== "succeeded")?.status ??
+							"succeeded",
+						stages,
+					}),
+				);
+				const outcome: PipelineStepOutcomeV1 = {
+					type: "pipeline",
 					stepId: candidate.id,
-					stepType: "pipeline",
-					error,
+					items,
+					...(groupError === undefined ? {} : { error: groupError }),
 				};
-				steps.push(unsupported);
-				if (callerCancelled || hookFailure !== undefined) break;
-				return finalize({
-					...base(),
-					status: "failed",
-					result: null,
-					error,
-				});
+				steps.push(outcome);
+				prior.set(candidate.id, outcome);
+				if (hookFailure !== undefined) break;
+				continue;
 			}
 
 			if (candidate.type === "agent") {
@@ -1346,7 +1540,7 @@ async function executeScheduledWorkflow(
 				),
 			});
 		}
-		if (selected.type === "parallel") {
+		if (selected.type === "parallel" || selected.type === "pipeline") {
 			return finalize({
 				...base(),
 				status: "succeeded",
