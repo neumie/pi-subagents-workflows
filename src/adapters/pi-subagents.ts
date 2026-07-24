@@ -78,7 +78,11 @@ export async function createPiSubagentsLeafAdapter(
 		const jiti = createJiti(import.meta.url);
 		const providerSpecifier = ["pi-subagents", "delegation"].join("/");
 		const module = await jiti.import(providerSpecifier);
-		return createPiSubagentsLeafAdapterCore(options, providerContract(module), randomUUID);
+		return createPiSubagentsLeafAdapterCore(
+			options,
+			providerContract(module),
+			randomUUID,
+		);
 	} catch (error) {
 		if (isPiSubagentsV2UnavailableError(error)) throw error;
 		throw new PiSubagentsV2UnavailableError(

@@ -274,14 +274,53 @@ this upstream release is the remaining Phase 12 release block.
 Planned commit (not created by the Phase 12 writer):
 `feat(adapter): run workflow leaves through delegation v2`
 
-### 13. Pi tool and command adapter: red-green
+### 13. Foreground Pi integration: staged red-green
+
+Phase 13 is split so filesystem provenance and audit persistence do not imply a
+registered or background-capable product.
+
+#### 13a. Strict definition sources and foreground run audit store (consumer complete)
+
+Focused red-green tests and internal modules implement discriminated
+inline/saved/path resolution, exact non-recursive saved roots with ambiguity
+rejection, capability-gated explicit paths, bounded strict UTF-8 regular-file
+reads, duplicate-key rejection, exact source hashing/snapshots, pre-existing
+link rejection, and observable mutation/replacement detection. The separate
+Workflow-owned run store derives a session key from the stable Pi
+session identity, creates restrictive exclusive run directories, awaits the
+engine-issued `workflow_started` audit writes, serializes and fsyncs every
+non-progress event, and uses atomic no-replace publication for one bounded
+terminal summary without duplicating retained leaf payloads. Strict
+listing/inspection decoders stream-check the journal and expose provenance and
+terminal or incomplete audit summaries only: there are no replay, resume,
+continue, cache,
+adoption, daemon, or saved-definition mutation APIs. Pure Node path checks do
+not claim protection from an active same-account or privileged ancestor
+swap-back attack; native Windows reparse/ACL and hostile namespace behavior
+remain Phase 14 release gates.
+
+Planned commit (not created by the Phase 13a writer):
+`feat(extension): add strict workflow provenance and foreground audit store`
+
+#### 13b. Shared foreground run service and rendering: red-green (not started)
+
+First prove journal-before-dispatch behavior through the service, exact
+in-memory active-run ownership and cancellation, hook/store failure handling,
+bounded rendering, literal/structured result preservation, nested usage, and
+cleanup. Then implement the awaited foreground service, renderers, and Pi usage
+adapter. Disk remains audit/inspection state, never ownership or recovery
+state.
+
+#### 13c. Pi tool and command registration: red-green (not started)
 
 First test packed-package extension loading and both invocation paths, hook
-updates, structured/literal rendering, run/session identity, and targeted
-cancellation. Then register and implement the bounded foreground tool and
-command adapter.
+updates, source capability differences, run/session identity, and targeted
+cancellation. Then replace the no-op extension scaffold with the bounded
+foreground `pi_workflow` tool and `/pi-workflow` command. Do not add any
+resume/detach command or model path capability.
 
-Commit: `feat(extension): expose foreground workflow tool and command`
+Planned commit:
+`feat(extension): expose foreground workflow tool and command`
 
 ### 14. Foreground hardening and release acceptance
 
@@ -340,9 +379,9 @@ edit the engine coordinator concurrently.
 Stop provider work if the upstream rebase is incomplete, baseline failures are
 unclassified, v1 compatibility changes, duplicate correlation is ambiguous,
 or the structured payload bounds are not enforced by tests. Stop a consumer
-slice if any predecessor is red. Stop release for provider deep imports, silent v1 fallback,
-sibling/file dependencies, missing packed-package E2E, or a failed Ubuntu or
-Windows gate.
+slice if any predecessor is red. Stop release for provider deep imports, silent
+v1 fallback, sibling/file dependencies, missing packed-package E2E, or a failed
+Ubuntu or Windows gate.
 
 Most importantly, stop all daemon, replay, lease, reconciliation, adoption, and
 background durability work until the complete foreground parser, sequential /
@@ -366,6 +405,7 @@ For IR v1 and the foreground release, this project will not:
   usage accounting;
 - add nested workflows, automatic cache reuse, arbitrary package resource
   discovery, parity retry policies, or expanded worktree policy to IR v1; or
-- publish npm packages before the release gates pass. The documentation phase
-  is complete; the current implementation remains limited to the approved
-  identity/package scaffold.
+- publish npm packages before the release gates pass. The current consumer
+  includes the parser, foreground engine, provider adapter, and unregistered
+  internal source/audit-store slice; the Pi tool/command and release gates are
+  still incomplete.

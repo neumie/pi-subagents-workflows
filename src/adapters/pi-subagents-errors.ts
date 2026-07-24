@@ -22,7 +22,9 @@ export function safeErrorMessage(error: unknown, fallback: string): string {
 		return fallback;
 	try {
 		const descriptor = Object.getOwnPropertyDescriptor(error, "message");
-		return descriptor && "value" in descriptor && typeof descriptor.value === "string"
+		return descriptor &&
+			"value" in descriptor &&
+			typeof descriptor.value === "string"
 			? boundedMessage(descriptor.value)
 			: fallback;
 	} catch {
@@ -33,7 +35,9 @@ export function safeErrorMessage(error: unknown, fallback: string): string {
 export function isPiSubagentsV2UnavailableError(
 	error: unknown,
 ): error is PiSubagentsV2UnavailableError {
-	return typeof error === "object" && error !== null && unavailableErrors.has(error);
+	return (
+		typeof error === "object" && error !== null && unavailableErrors.has(error)
+	);
 }
 
 export class PiSubagentsV2UnavailableError extends Error {

@@ -406,8 +406,7 @@ function appendCanonical(
 	}
 	if (!sink.append("{")) return false;
 	const keys = Object.keys(value).sort(compareCodePoints);
-	for (let index = 0; index < keys.length; index += 1) {
-		const key = keys[index]!;
+	for (const [index, key] of keys.entries()) {
 		if (index > 0 && !sink.append(",")) return false;
 		if (!appendCanonicalString(key, sink) || !sink.append(":")) return false;
 		if (!appendCanonical(value[key] as JsonValue, sink)) return false;
@@ -441,7 +440,8 @@ function validateArrayValue(
 	if (!Array.isArray(value)) return `${path}: expected array`;
 	if (schema.minItems !== undefined && value.length < schema.minItems)
 		return `${path}: array has too few items`;
-	if (value.length > schema.maxItems) return `${path}: array has too many items`;
+	if (value.length > schema.maxItems)
+		return `${path}: array has too many items`;
 	for (let index = 0; index < value.length; index += 1) {
 		const issue = validateJsonValue(
 			schema.items,
@@ -523,6 +523,8 @@ export function validateJsonValue(
 			return validateArrayValue(schema, value, path);
 		case "object":
 			return validateObjectValue(schema, value, path);
+		default:
+			return `${path}: unsupported schema type`;
 	}
 }
 
