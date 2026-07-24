@@ -1,14 +1,23 @@
-# Claude Code Dynamic Workflows research
+# pi-subagents-workflows research
 
 This directory contains the evidence and synthesis used to understand Claude
-Code Dynamic Workflows before implementing a Pi equivalent.
+Code Dynamic Workflows before building `pi-subagents-workflows`, a planned
+add-on for `pi-subagents`.
 
 **Research scope:** Claude Code v2.1.218, the v2.1.217 Workflow tool prompt,
 Pi v0.81.1, and `pi-subagents` v0.35.1 at commit
 `67ce1939977bdcdb32048fa0e4d387a48b22b729`.
 
+**Project status:** research and the build contract are complete; implementation
+has not started. The approved choices are restricted JSON IR, current
+`pi-subagents` authority, a phased full foreground build, and the final
+repository/package name `pi-subagents-workflows`. See the
+[build contract](../PLAN.md).
+
 ## Start here
 
+- **[Build contract](../PLAN.md)** — current decisions, repository ownership,
+  public TDD seams, phases, branch/commit gates, stop rules, and non-goals.
 - **[Claude Dynamic Workflows and `pi-subagents`: exact-checkout comparison](pi-subagents-comparison.md)**
   — implementation-boundary comparison, reuse matrix, contribution map,
   observed test baseline, authority profiles, staged sequence, and release gates.
@@ -17,7 +26,8 @@ Pi v0.81.1, and `pi-subagents` v0.35.1 at commit
   persistence, security, Pi feasibility, roadmap, unresolved questions, and the
   pre-implementation decision checklist.
 - **[Comprehensive-review workflow example](examples/comprehensive-review.workflow.js)**
-  — the original generated workflow analyzed in the synthesis.
+  — the original generated workflow analyzed in the synthesis. It is research
+  evidence, not the selected executable definition format.
 
 ## Primary evidence
 
@@ -46,12 +56,17 @@ environment.
 
 ## Implementation boundary
 
-No Pi extension has been implemented. The long-term target is transport-neutral,
-daemon-safe `pi-subagents` leaf ownership beneath a trusted supervisor and
-either restricted orchestration IR or real external containment for untrusted
-JavaScript. Public delegation v1 can support only an optional adapter-queued,
-concurrency-one, text-only, active-context non-release spike under current
-`pi-subagents` authority; overlapping foreground dispatch is rejected rather
-than queued by `pi-subagents`. See the comparison’s
-[staged architecture](pi-subagents-comparison.md#staged-architecture) and
-resolve the decision checklist before implementation.
+No Pi extension has been implemented. The selected foreground target is a
+trusted extension executing strict JSON IR and consuming a public
+`pi-subagents` delegation-v2 owned-leaf seam. Workflow parsing, scheduling,
+typed outcomes, aggregate limits, and Pi tool/command behavior belong to
+`pi-subagents-workflows`; child Pi lifecycle and current configured authority
+remain with `pi-subagents`.
+
+Public delegation v1 is insufficient for release because it is single-flight,
+text-only, active-context plumbing without detailed usage. The provider v2 seam
+must land first. Daemon-safe ownership, durable replay, leases, reconciliation,
+and adoption are a later phase blocked on a fully green foreground release.
+See the comparison’s
+[staged architecture](pi-subagents-comparison.md#staged-architecture) for the
+research path and [PLAN.md](../PLAN.md) for the final build contract.

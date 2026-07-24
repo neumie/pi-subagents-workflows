@@ -12,7 +12,7 @@ Claude facts below inherit the evidence classes and version qualifications in th
 
 ## Executive conclusion
 
-**`pi-subagents` is a strong leaf, lifecycle, and UI substrate; it is not the Workflow engine.** It already owns much of the difficult child-agent machinery: specialist discovery, child Pi processes, model and thinking resolution, prompt/context hygiene, tools and skills, structured capture, barriered chains and fan-out, artifacts, worktrees, progress, controls, async status, revival, usage, quality gates, and polished inspectors. Reimplementing that machinery in `pi-workflows` would be wasteful.
+**`pi-subagents` is a strong leaf, lifecycle, and UI substrate; it is not the Workflow engine.** It already owns much of the difficult child-agent machinery: specialist discovery, child Pi processes, model and thinking resolution, prompt/context hygiene, tools and skills, structured capture, barriered chains and fan-out, artifacts, worktrees, progress, controls, async status, revival, usage, quality gates, and polished inspectors. Reimplementing that machinery in `pi-subagents-workflows` would be wasteful.
 
 Claude Dynamic Workflows puts a reviewed deterministic program above workers. That program owns arbitrary restricted-JavaScript control flow, value reduction, `parallel()`, item-local no-barrier `pipeline()`, shared resource domains, one-level workflow composition, a result journal, and replay. Current `pi-subagents` instead exposes parent/model-driven delegation plus a closed declarative chain grammar. Its public delegation API is one foreground text leaf, and its durable artifacts describe child runs rather than replayable Workflow calls.
 
@@ -147,7 +147,7 @@ The inspected Pi checkout has substantial reusable UI:
 - watch polls output every 200 ms and targets every second ([PS: `subagent-watch.ts` 22–23](https://github.com/neumie/pi-subagents/blob/67ce1939977bdcdb32048fa0e4d387a48b22b729/src/tui/subagent-watch.ts#L22-L23), [307–320](https://github.com/neumie/pi-subagents/blob/67ce1939977bdcdb32048fa0e4d387a48b22b729/src/tui/subagent-watch.ts#L307-L320)); and
 - the exact HEAD confines watch paths to direct run directories, validates indices, rejects final transcript-file symlinks, and bounds transcript reads ([PS: `subagent-watch.ts` 36–52, 84–93](https://github.com/neumie/pi-subagents/blob/67ce1939977bdcdb32048fa0e4d387a48b22b729/src/tui/subagent-watch.ts#L36-L52), [PS: `subagent-watch-data.ts` 200–247](https://github.com/neumie/pi-subagents/blob/67ce1939977bdcdb32048fa0e4d387a48b22b729/src/tui/subagent-watch-data.ts#L200-L247)).
 
-**Verdict: analogous observability, materially different control.** Responsive overlays, roster/detail presentation, safe transcript reading, graph view-models, and status formatters are strong extraction candidates, but they are internal modules—not supported package imports. Reuse should happen through an upstream export or shared view-model seam, never a deep import or source copy. `pi-workflows` must still own Workflow run/phase/node state, journal/replay controls, source/save semantics, and whole-run completion. A thin `/workflows` projection should reuse shared presentation rather than clone the inspector stack.
+**Verdict: analogous observability, materially different control.** Responsive overlays, roster/detail presentation, safe transcript reading, graph view-models, and status formatters are strong extraction candidates, but they are internal modules—not supported package imports. Reuse should happen through an upstream export or shared view-model seam, never a deep import or source copy. `pi-subagents-workflows` must still own Workflow run/phase/node state, journal/replay controls, source/save semantics, and whole-run completion. A thin `/workflows` projection should reuse shared presentation rather than clone the inspector stack.
 
 ## Security and authority
 
@@ -204,7 +204,7 @@ The internal RPC is not a substitute: it is unexported, event-bus/context bound,
 | Decision | Surface | Boundary |
 | --- | --- | --- |
 | **Use as-is** | `pi-subagents/background-work` | Process-local visibility, waiting, wake discovery, and headless integration only. Workflow store remains truth. |
-| **Wrap** | Public delegation v1 | Optional non-release Phase 1A spike: the `pi-workflows` adapter queues calls at concurrency one because overlapping bridge dispatch is rejected; text only, active context, current authority, typed terminal statuses. |
+| **Wrap** | Public delegation v1 | Optional non-release Phase 1A spike: the `pi-subagents-workflows` adapter queues calls at concurrency one because overlapping bridge dispatch is rejected; text only, active context, current authority, typed terminal statuses. |
 | **Extract or export** | Concurrent owned single-leaf dispatch | Minimum foreground-release prerequisite; supervisor, not leaf API, owns Workflow ordering/semaphore. |
 | **Extract or export** | Structured leaf value and detailed usage | Adapt existing `SingleResult.structuredOutput` and `Usage` into a stable public DTO. |
 | **Extract or export** | Fleet/watch presentation, safe readers, and graph/nested view-models | Valuable code exists, but it is not publicly exported. Add a supported shared seam rather than deep-importing or copying it. |
@@ -252,7 +252,7 @@ The exact checkout was exercised more than once:
 
 The first unit run failed two child-boundary tests—supervisor-tool registration and missing requested-tool diagnostics ([PS: `subagent-prompt-runtime.test.ts` 605–661](https://github.com/neumie/pi-subagents/blob/67ce1939977bdcdb32048fa0e4d387a48b22b729/test/unit/subagent-prompt-runtime.test.ts#L605-L661))—plus malformed language-server JSON handling ([PS: `watchdog-lsp-diagnostics.test.ts` 93–117](https://github.com/neumie/pi-subagents/blob/67ce1939977bdcdb32048fa0e4d387a48b22b729/test/unit/watchdog-lsp-diagnostics.test.ts#L93-L117)). The boundary file then passed **31/31** both in isolation and within the independent full rerun. Those two failures are therefore order/interference-sensitive observations, not reproduced source failures.
 
-The watchdog test remained the sole failure in the full rerun and failed **1/5** when rerun alone: the implementation returned `timeout` where the test expected `failed`. It is outside the Workflow leaf boundary, but it means the pinned checkout did not have a fully green unit baseline during this audit. None of these failures was caused by `pi-workflows`; no implementation existed or ran.
+The watchdog test remained the sole failure in the full rerun and failed **1/5** when rerun alone: the implementation returned `timeout` where the test expected `failed`. It is outside the Workflow leaf boundary, but it means the pinned checkout did not have a fully green unit baseline during this audit. None of these failures was caused by `pi-subagents-workflows`; no implementation existed or ran.
 
 Existing coverage is broad around foreground/async execution, chains, fan-out, structured capture, worktrees, lifecycle, session leases, Fleet/watch, delegation parsing, and background-work validation. The public delegation tests use a fake event bus/executor; the two E2E tests use a real Pi session and child process with a faux provider. This does not yet prove a Workflow consumer contract.
 
@@ -278,7 +278,7 @@ public delegation v1. Explicitly trusted-only JavaScript is a user-selected
 alternative, not an accidental default:
 
 - active extension context required;
-- exactly one foreground leaf at a time, queued by the `pi-workflows` adapter
+- exactly one foreground leaf at a time, queued by the `pi-subagents-workflows` adapter
   because overlapping bridge dispatch is rejected;
 - text results only;
 - current `pi-subagents` authority profile;
@@ -313,7 +313,7 @@ independence.
 Keeping `execute()` pending helps lifecycle: it retains the parent abort path,
 allows `onUpdate`, and provides a place to return nested usage. **It does not by
 itself solve Pi nested usage accounting.** Delegation must expose full usage,
-and `pi-workflows` must adapt it into Pi’s documented nested-usage result shape
+and `pi-subagents-workflows` must adapt it into Pi’s documented nested-usage result shape
 with an integration test against session/RPC totals. Until then the Workflow
 store is the authoritative ledger.
 
@@ -346,7 +346,7 @@ It is not the broker or task owner.
 
 | Owner | Responsibilities |
 | --- | --- |
-| `pi-workflows` | Definition/IR and source approval, trusted supervisor, scheduling, true pipeline, typed slot policy, aggregate caps/budgets, Workflow journal/store, cache/replay policy, Workflow UI/control state, completion and branch policy. |
+| `pi-subagents-workflows` | Definition/IR and source approval, trusted supervisor, scheduling, true pipeline, typed slot policy, aggregate caps/budgets, Workflow journal/store, cache/replay policy, Workflow UI/control state, completion and branch policy. |
 | `pi-subagents` | Specialist and child Pi lifecycle, model/thinking/tool/context resolution, structured capture, per-leaf limits/retries, sessions/transcripts, artifacts/worktrees, progress/control events, detailed usage, and long-term owned-leaf execution API. |
 | Pi host | Extension lifecycle, model-facing tool contract, pending result/update/abort plumbing, session tree, TUI/RPC mode surfaces, and documented nested-usage accounting. |
 | External isolation layer (if selected) | Actual CPU, memory, process, filesystem, network, credential, environment, and process-tree containment. |

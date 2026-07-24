@@ -862,7 +862,7 @@ Outbound workflow analytics must default **off**, remain separate from Pi’s ow
 ### 14.1 Optional Phase 1A — adapter-queued non-release spike
 
 - Prefer restricted IR in the trusted extension and wrap public delegation v1; explicitly trusted-only JavaScript remains a user-selected alternative.
-- Require an active extension context; queue in the `pi-workflows` adapter and run one text-returning foreground leaf at a time because overlapping delegation-v1 dispatch is rejected.
+- Require an active extension context; queue in the `pi-subagents-workflows` adapter and run one text-returning foreground leaf at a time because overlapping delegation-v1 dispatch is rejected.
 - Inherit current `pi-subagents` authority and preserve typed terminal outcomes.
 - Keep the parent tool pending for progress and cancellation; keep a Workflow-local event/result log without automatic cache reuse.
 - Make no schema, concurrency, daemon, hardened-capability, or accurate detailed-usage claim.
