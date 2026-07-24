@@ -195,7 +195,7 @@ Gate: focused tests plus full unit, integration, and E2E suites pass on Node 24
 Ubuntu and Windows. Publish a v2-capable release or RC before the consumer pins
 a final supported range.
 
-### 7. Final consumer identity and scaffold: red-green (current)
+### 7. Final consumer identity and scaffold: red-green (complete)
 
 On `chore/establish-pi-subagents-workflows`, first freeze package name, exports,
 extension paths, host peer range, and metadata with manifest tests. Then add the
@@ -209,7 +209,7 @@ Gate: collision checks are approved, then `npm ci --ignore-scripts`, manifest
 tests, and `npm pack --dry-run` pass. No sibling, `file:`, deep-import, or
 `npm link` dependency may enter the repository.
 
-### 8. Strict JSON IR v1: red-green
+### 8. Strict JSON IR v1: red-green (complete)
 
 On `feat/foreground-workflow-ir-v1`, add table-driven parser, reference, and
 template tests covering every accepted node and rejection listed above. Confirm
