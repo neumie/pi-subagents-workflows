@@ -96,7 +96,7 @@ test("host imports are optional wildcard peers with exact development pins", () 
   const manifest = loadManifest();
   const hostPackage = "@earendil-works/pi-coding-agent";
 
-  assert.deepEqual(manifest.dependencies, undefined);
+  assert.deepEqual(manifest.dependencies, { jiti: "2.7.0" });
   assert.deepEqual(manifest.optionalDependencies, undefined);
   assert.deepEqual(manifest.peerDependencies, { [hostPackage]: "*" });
   assert.deepEqual(manifest.peerDependenciesMeta, {
@@ -105,7 +105,6 @@ test("host imports are optional wildcard peers with exact development pins", () 
   assert.deepEqual(manifest.devDependencies, {
     [hostPackage]: "0.81.0",
     "@types/node": "24.13.3",
-    jiti: "2.7.0",
     typescript: "5.9.3",
   });
   assert.equal(manifest.bin, undefined);
@@ -130,6 +129,7 @@ test("host imports are optional wildcard peers with exact development pins", () 
 
   assert.deepEqual(manifest.scripts, {
     "test:unit": "node --experimental-strip-types --test test/unit/*.test.ts",
+    "test:provider-artifact": "node --test test/provider-artifact.test.mjs",
     typecheck: "tsc --noEmit",
     test: "npm run test:unit && npm run typecheck",
     "pack:check": "npm pack --dry-run --ignore-scripts",
@@ -163,6 +163,9 @@ test("dry-run tarball contains only declared source and documentation", () => {
     "PLAN.md",
     "README.md",
     "package.json",
+    "src/adapters/pi-subagents-core.ts",
+    "src/adapters/pi-subagents-errors.ts",
+    "src/adapters/pi-subagents.ts",
     "src/engine/execute-workflow.ts",
     "src/engine/index.ts",
     "src/engine/types.ts",

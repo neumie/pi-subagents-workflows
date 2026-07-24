@@ -258,14 +258,21 @@ overflow later source-order aggregation.
 
 Commit: `feat(engine): add item-local pipeline stages`
 
-### 12. Public `pi-subagents` LeafRunner adapter: red-green
+### 12. Public `pi-subagents` LeafRunner adapter: red-green (consumer complete)
 
-Against a packed/published provider artifact, test v2 identity, concurrency,
-duplicates, text-versus-structured values, thinking/model, detailed usage,
-cancellation, reload/disposal, and typed failures. Implement only against
-`pi-subagents/delegation`; reject unsupported providers rather than downgrading.
+Provider-free fake-bus tests cover v2 identity, constant-listener concurrency,
+duplicates, literal text and structured values, thinking/model, detailed usage,
+hostile payloads, cancellation races, reload/disposal, bounded progress, and
+typed failures. A separate reviewed-artifact smoke gate proves clean external
+tarball installation, public `pi-subagents/delegation` loading, protocol/export
+compatibility, and hard-zero request projection; it does not stand in for the
+real cross-extension E2E required by Phase 14. The runtime rejects unsupported
+providers rather than downgrading. The consumer intentionally has no
+`pi-subagents` manifest entry until the reviewed v2 provider seam is published;
+this upstream release is the remaining Phase 12 release block.
 
-Commit: `feat(adapter): run workflow leaves through delegation v2`
+Planned commit (not created by the Phase 12 writer):
+`feat(adapter): run workflow leaves through delegation v2`
 
 ### 13. Pi tool and command adapter: red-green
 

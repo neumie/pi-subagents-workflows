@@ -37,6 +37,7 @@
   },
   "scripts": {
     "test:unit": "node --experimental-strip-types --test test/unit/*.test.ts",
+    "test:provider-artifact": "node --test test/provider-artifact.test.mjs",
     "typecheck": "tsc --noEmit",
     "test": "npm run test:unit && npm run typecheck",
     "pack:check": "npm pack --dry-run --ignore-scripts"
@@ -45,6 +46,9 @@
     "extensions": [
       "./src/extension/index.ts"
     ]
+  },
+  "dependencies": {
+    "jiti": "2.7.0"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
@@ -57,7 +61,6 @@
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "0.81.0",
     "@types/node": "24.13.3",
-    "jiti": "2.7.0",
     "typescript": "5.9.3"
   }
 }

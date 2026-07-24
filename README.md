@@ -6,12 +6,14 @@ strict JSON workflow definition format, a deterministic foreground scheduler,
 and a Pi tool/command adapter while leaving child-agent execution and policy in
 `pi-subagents`.
 
-**Status: strict restricted IR v1 parser plus sequential, barriered-parallel,
-and item-local pipeline foreground execution implemented.**
+**Status: strict restricted IR v1 parser, sequential/barriered-parallel/item-local
+pipeline execution, and the public delegation-v2 leaf adapter implemented.**
 The package identity, public IR and engine types, immutable definition parser,
-shared workflow semaphore, typed aligned execution seam, no-op extension entry
-point, tests, and CI exist. The provider adapter, Workflow tool/command, and
-published npm package do not exist yet. See
+shared workflow semaphore, typed aligned execution seam, provider adapter,
+no-op extension entry point, tests, and CI exist. The Workflow tool/command and
+published npm package do not exist yet. The adapter is artifact-tested against
+reviewed provider commit `f936daa`, but a runtime `pi-subagents` dependency
+cannot be added until that provider seam is published. See
 [PLAN.md](PLAN.md) for the TDD and release contract.
 
 ## Current branches and identity
@@ -42,10 +44,25 @@ for the release gates.
 - **Identity:** full repository and package rename from `pi-workflows` to
   `pi-subagents-workflows`.
 
+## Provider adapter
+
+`createPiSubagentsLeafAdapter({ events, cwd, context? })` is exported from the
+package root. It loads only the public `pi-subagents/delegation` subpath at
+runtime, requires protocol version 2, defaults to fresh context, and leaves
+model, thinking, skill, artifact, and other authority policy to the installed
+provider. Each adapter returns a `leafRunner` for `executeWorkflow` and an
+idempotent `dispose()` method. Missing or malformed v2 providers reject with
+`PiSubagentsV2UnavailableError`; there is no delegation-v1 fallback.
+
+The adapter shares one response listener and one update listener per event bus,
+uses exact owned-attempt cancellation tuples, defensively validates untrusted
+provider payloads, and exposes only engine terminal/progress values—not raw
+provider DTOs or metadata.
+
 ## What must land in pi-subagents first
 
-A foreground release depends on a published delegation-v2 seam in
-`pi-subagents` that provides:
+A foreground release still depends on publishing the reviewed delegation-v2
+seam in `pi-subagents`, which provides:
 
 - concurrent owned single-agent dispatch;
 - stable logical `ownerRunId` / `nodeId` identity with a fresh `requestId` for
@@ -185,7 +202,9 @@ values, unsupported policies, and malformed schemas or limits fail parsing.
 6. Build strict IR v1 through a parser red-green slice.
 7. Build sequential typed execution, barriered parallel execution, and
    item-local pipelines as separate red-green slices.
-8. Add the public `pi-subagents` `LeafRunner` adapter.
+8. Add the public `pi-subagents` `LeafRunner` adapter. **Implemented and green
+   against the reviewed provider artifact; dependency publication remains
+   blocked upstream.**
 9. Add the foreground Pi tool and command adapter.
 10. Pass packed-package, security, provider-matrix, Node 24 Ubuntu/Windows, and
     real-extension release gates.
@@ -207,10 +226,24 @@ npm test
 npm run pack:check
 ```
 
-`npm test` runs the unit parser, sequential/parallel engine, manifest/tarball
-contracts, and strict typecheck. The packed-package test imports and executes the public
-engine seam. There are no provider integration or end-to-end suites yet because
-the provider adapter and Workflow tool/command are not implemented.
+`npm test` remains provider-free and runs the unit parser, engine, adapter fake
+bus, manifest/tarball contracts, and strict typecheck. The separately required
+provider artifact gate fails clearly unless a tarball is supplied:
+
+```sh
+PI_SUBAGENTS_TARBALL=/path/to/pi-subagents.tgz \
+PI_SUBAGENTS_TARBALL_SHA256=<optional-reviewed-sha256> \
+npm run test:provider-artifact
+```
+
+That smoke gate packs this consumer, creates a temporary clean fixture outside
+the repository, installs both tarballs without lifecycle scripts or a lockfile,
+loads their installed public exports through Jiti, and executes the real adapter
+over a fake event bus. It proves public artifact resolution and request/response
+compatibility at the exported seam; it does not instantiate the provider
+extension handler. There is no committed provider artifact or path. The real
+cross-extension Pi integration suite remains a Phase 14 gate because the
+Workflow tool/command is not implemented.
 
 ## Research
 

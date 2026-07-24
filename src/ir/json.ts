@@ -1,3 +1,5 @@
+import { types as utilTypes } from "node:util";
+
 import type { JsonValue, SchemaV1 } from "./types.ts";
 
 const encoder = new TextEncoder();
@@ -51,6 +53,7 @@ export interface SafeJsonCloneLimits {
 	readonly maximumEntries: number;
 	readonly subject: string;
 	readonly sizeLabel: string;
+	readonly rejectProxies?: boolean;
 }
 
 const definitionCloneLimits: SafeJsonCloneLimits = {
@@ -155,6 +158,8 @@ export function cloneSafeJson(
 		}
 
 		const object = value as object;
+		if (state.limits.rejectProxies && utilTypes.isProxy(object))
+			reject(path, "proxy values are not allowed");
 		if (state.active.has(object)) reject(path, "cyclic values are not allowed");
 		state.active.add(object);
 		try {
