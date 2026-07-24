@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
+import { pathToFileURL } from "node:url";
 
 const repositoryUrl = "https://github.com/neumie/pi-subagents-workflows";
 const manifestPath = new URL("../../package.json", import.meta.url);
@@ -102,6 +105,7 @@ test("host imports are optional wildcard peers with exact development pins", () 
   assert.deepEqual(manifest.devDependencies, {
     [hostPackage]: "0.81.0",
     "@types/node": "24.13.3",
+    jiti: "2.7.0",
     typescript: "5.9.3",
   });
   assert.equal(manifest.bin, undefined);
@@ -163,6 +167,74 @@ test("dry-run tarball contains only declared source and documentation", () => {
     "src/extension/index.ts",
     "src/index.ts",
     "src/ir/index.ts",
+    "src/ir/json.ts",
+    "src/ir/parser.ts",
+    "src/ir/types.ts",
   ]);
   assert.equal(packedFiles.some((path) => /workflow.*\.js$/i.test(path)), false);
+});
+
+test("packed package imports every public entry through Jiti from a clean install", () => {
+  const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "pi-subagents-workflows-pack-"));
+  try {
+    const packed = spawnSync(
+      npm,
+      ["pack", "--json", "--ignore-scripts", "--pack-destination", temporaryDirectory],
+      { cwd: new URL("../..", import.meta.url), encoding: "utf8" },
+    );
+    assert.equal(packed.status, 0, packed.stderr || packed.stdout);
+    const reports = JSON.parse(packed.stdout) as Array<{ filename: string }>;
+    const tarball = join(temporaryDirectory, reports[0]?.filename ?? "missing.tgz");
+
+    writeFileSync(join(temporaryDirectory, "package.json"), JSON.stringify({
+      private: true,
+      type: "module",
+      dependencies: {
+        jiti: "2.7.0",
+        "pi-subagents-workflows": pathToFileURL(tarball).href,
+      },
+    }));
+    const installed = spawnSync(
+      npm,
+      ["install", "--ignore-scripts", "--no-audit", "--no-fund"],
+      { cwd: temporaryDirectory, encoding: "utf8" },
+    );
+    assert.equal(installed.status, 0, installed.stderr || installed.stdout);
+
+    const runner = join(temporaryDirectory, "import-packed.mjs");
+    writeFileSync(runner, `
+      import { createJiti } from "jiti";
+      const jiti = createJiti(import.meta.url);
+      const root = await jiti.import("pi-subagents-workflows");
+      const ir = await jiti.import("pi-subagents-workflows/ir");
+      const engine = await jiti.import("pi-subagents-workflows/engine");
+      if (typeof root.parseWorkflowDefinition !== "function") throw new Error("missing root parser");
+      if (typeof ir.parseWorkflowDefinition !== "function") throw new Error("missing IR parser");
+      if (engine === null || typeof engine !== "object") throw new Error("missing engine module");
+      const parsed = root.parseWorkflowDefinition({
+        version: 1,
+        id: "packed",
+        args: {},
+        limits: { concurrency: 1, maxCalls: 1, maxItems: 1 },
+        steps: [{
+          type: "agent",
+          id: "only",
+          agent: "reviewer",
+          prompt: { template: "Literal", values: {} },
+          output: { mode: "text" },
+          limits: { timeoutMs: 1000, maxTurns: 1, maxToolCalls: 0 }
+        }],
+        result: { ref: "step", stepId: "only" }
+      });
+      if (parsed.id !== "packed") throw new Error("packed parser returned the wrong definition");
+    `);
+    const imported = spawnSync(process.execPath, [runner], {
+      cwd: temporaryDirectory,
+      encoding: "utf8",
+    });
+    assert.equal(imported.status, 0, imported.stderr || imported.stdout);
+  } finally {
+    rmSync(temporaryDirectory, { recursive: true, force: true });
+  }
 });

@@ -6,17 +6,17 @@ strict JSON workflow definition format, a deterministic foreground scheduler,
 and a Pi tool/command adapter while leaving child-agent execution and policy in
 `pi-subagents`.
 
-**Status: initial package and Pi extension scaffold.** The package identity,
-stable empty barrels, no-op extension entry point, tests, and CI exist. The JSON
-IR, workflow engine, provider adapter, Workflow tool/command, and published npm
-package do not exist yet. See [PLAN.md](PLAN.md) for the TDD and release
-contract.
+**Status: strict restricted IR v1 parser implemented.** The package identity,
+public IR types, immutable definition parser, no-op extension entry point,
+tests, and CI exist. The workflow engine, provider adapter, Workflow
+tool/command, and published npm package do not exist yet. See
+[PLAN.md](PLAN.md) for the TDD and release contract.
 
 ## Current branches and identity
 
 - `feat/build-workflow-extension` preserves the research and pre-code contract.
 - `chore/establish-pi-subagents-workflows` contains the identity scaffold.
-- `feat/foreground-workflow-ir-v1` is the next planned consumer branch.
+- `feat/foreground-workflow-ir-v1` is the current consumer branch.
 - The provider branch is `feat/add-workflow-delegation-v2` in
   `pi-subagents`, rebased onto current upstream before feature edits.
 
@@ -61,10 +61,9 @@ before this add-on pins a final dependency range.
 
 ## IR v1 example
 
-The exact grammar will be frozen by parser tests before implementation. This
-illustrative JSON shows the intended restricted shape: explicit references and
-templates, ordered steps, bounded output modes, and one final-result reference.
-It is not executable today.
+The grammar is frozen by parser tests. This illustrative JSON shows a valid
+restricted definition with explicit references and templates, ordered steps,
+bounded output modes, and one final-result reference.
 
 ```json
 {
@@ -75,26 +74,31 @@ It is not executable today.
   },
   "limits": {
     "concurrency": 2,
-    "maxTurns": 12
+    "maxCalls": 3,
+    "maxItems": 1
   },
   "steps": [
     {
       "type": "agent",
       "id": "draft",
       "agent": "researcher",
-      "phase": "Draft",
       "prompt": {
         "template": "Research {{topic}}",
         "values": {
           "topic": { "ref": "arg", "name": "topic" }
         }
       },
-      "output": { "mode": "text" }
+      "output": { "mode": "text" },
+      "limits": {
+        "timeoutMs": 120000,
+        "maxTurns": 8,
+        "maxToolCalls": 20
+      },
+      "meta": { "phase": "Draft" }
     },
     {
       "type": "parallel",
       "id": "checks",
-      "phase": "Check",
       "tasks": [
         {
           "id": "accuracy",
@@ -105,7 +109,12 @@ It is not executable today.
               "draft": { "ref": "step", "stepId": "draft" }
             }
           },
-          "output": { "mode": "text" }
+          "output": { "mode": "text" },
+          "limits": {
+            "timeoutMs": 120000,
+            "maxTurns": 6,
+            "maxToolCalls": 10
+          }
         },
         {
           "id": "clarity",
@@ -116,19 +125,25 @@ It is not executable today.
               "draft": { "ref": "step", "stepId": "draft" }
             }
           },
-          "output": { "mode": "text" }
+          "output": { "mode": "text" },
+          "limits": {
+            "timeoutMs": 120000,
+            "maxTurns": 6,
+            "maxToolCalls": 10
+          }
         }
-      ]
+      ],
+      "meta": { "phase": "Check" }
     }
   ],
   "result": { "ref": "step", "stepId": "checks" }
 }
 ```
 
-IR v1 will support sequential `agent` steps, barriered `parallel` cohorts, and
+IR v1 supports sequential `agent` steps, barriered `parallel` cohorts, and
 true item-local `pipeline` stages. Unknown fields, implicit string references,
 forward or invalid references, missing template values, unsupported policies,
-and malformed schemas or limits will fail parsing.
+and malformed schemas or limits fail parsing.
 
 ## Phased roadmap
 
@@ -163,9 +178,9 @@ npm test
 npm run pack:check
 ```
 
-`npm test` runs the unit manifest/tarball contract and strict typecheck. There
-are no integration or end-to-end suites yet because the IR, engine, provider
-adapter, and Workflow tool/command are not implemented.
+`npm test` runs the unit parser/manifest/tarball contracts and strict
+typecheck. There are no integration or end-to-end suites yet because the
+engine, provider adapter, and Workflow tool/command are not implemented.
 
 ## Research
 
