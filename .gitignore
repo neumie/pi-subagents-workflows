@@ -1,4 +1,8 @@
 node_modules/
 dist/
+coverage/
+.pi-subagents/
 *.log
+*.tgz
+package/
 .DS_Store

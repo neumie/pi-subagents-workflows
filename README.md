@@ -6,23 +6,24 @@ strict JSON workflow definition format, a deterministic foreground scheduler,
 and a Pi tool/command adapter while leaving child-agent execution and policy in
 `pi-subagents`.
 
-**Status: build contract approved; implementation has not started.** There is no
-package scaffold, executable extension, published package, or remote repository
-yet. See [PLAN.md](PLAN.md) for the TDD and release contract.
+**Status: initial package and Pi extension scaffold.** The package identity,
+stable empty barrels, no-op extension entry point, tests, and CI exist. The JSON
+IR, workflow engine, provider adapter, Workflow tool/command, and published npm
+package do not exist yet. See [PLAN.md](PLAN.md) for the TDD and release
+contract.
 
 ## Current branches and identity
 
-- `feat/build-workflow-extension` contains the research and pre-code contract.
-- `main` still predates the documentation rename and must receive the preserved
-  research before the identity scaffold starts.
-- Planned consumer branches are `chore/establish-pi-subagents-workflows`, then
-  `feat/foreground-workflow-ir-v1`.
+- `feat/build-workflow-extension` preserves the research and pre-code contract.
+- `chore/establish-pi-subagents-workflows` contains the identity scaffold.
+- `feat/foreground-workflow-ir-v1` is the next planned consumer branch.
 - The provider branch is `feat/add-workflow-delegation-v2` in
   `pi-subagents`, rebased onto current upstream before feature edits.
 
-The repository and npm package use the full name
-`pi-subagents-workflows`. The user has approved the local, package, and GitHub
-rename; npm publication still waits for the release gates.
+The repository, canonical local directory, and npm package use the full name
+`pi-subagents-workflows`. The GitHub repository is
+<https://github.com/neumie/pi-subagents-workflows>; npm publication still waits
+for the release gates.
 
 ## Selected decisions
 
@@ -151,14 +152,20 @@ commit boundaries, validation gates, stop rules, and the one-writer policy.
 
 ## Development and tests
 
-The scaffold does not exist, so commands are intentionally not claimed yet.
-They will be documented when the package and scripts land.
+Node 24 or newer is required. Dependency lifecycle scripts stay disabled for
+scaffold installation and packaging checks.
 
-- Install: **TODO after scaffold**
-- Unit tests: **TODO after scaffold**
-- Integration tests: **TODO after scaffold**
-- End-to-end tests: **TODO after scaffold**
-- Package validation: **TODO after scaffold**
+```sh
+npm ci --ignore-scripts
+npm run test:unit
+npm run typecheck
+npm test
+npm run pack:check
+```
+
+`npm test` runs the unit manifest/tarball contract and strict typecheck. There
+are no integration or end-to-end suites yet because the IR, engine, provider
+adapter, and Workflow tool/command are not implemented.
 
 ## Research
 
@@ -175,5 +182,4 @@ this README and `PLAN.md` now govern this project.
 
 ## License
 
-MIT is the intended license; the license file will be added with the approved
-package scaffold.
+[MIT](LICENSE)

@@ -1,0 +1,62 @@
+{
+  "name": "pi-subagents-workflows",
+  "version": "0.1.0",
+  "description": "Strict JSON workflow orchestration for pi-subagents and the Pi coding agent",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-coding-agent",
+    "pi-subagents",
+    "workflows",
+    "ai",
+    "agents"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/neumie/pi-subagents-workflows.git"
+  },
+  "homepage": "https://github.com/neumie/pi-subagents-workflows",
+  "bugs": {
+    "url": "https://github.com/neumie/pi-subagents-workflows/issues"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "PLAN.md",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./ir": "./src/ir/index.ts",
+    "./engine": "./src/engine/index.ts"
+  },
+  "scripts": {
+    "test:unit": "node --experimental-strip-types --test test/unit/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run test:unit && npm run typecheck",
+    "pack:check": "npm pack --dry-run --ignore-scripts"
+  },
+  "pi": {
+    "extensions": [
+      "./src/extension/index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.81.0",
+    "@types/node": "24.13.3",
+    "typescript": "5.9.3"
+  }
+}

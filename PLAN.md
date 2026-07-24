@@ -106,10 +106,9 @@ implicit string references are part of IR v1.
 4. `design/durable-workflow-daemon` — later design-only starting point, opened
    only after the foreground release gate passes.
 
-The user has approved the local, package, and GitHub rename. Rename the active
-local directory only at a controlled handoff with no child processes. Creating
-the final GitHub repository is in scope; npm publication remains a release-time
-operation after all gates pass.
+The approved local, package, and GitHub rename is complete. The canonical local
+directory and GitHub repository are now `pi-subagents-workflows`; npm
+publication remains a release-time operation after all gates pass.
 
 ## Phases and red-green slices
 
@@ -117,10 +116,10 @@ A slice stops on its first failing predecessor gate. A red test must fail for
 its intended missing behavior; a green slice must keep all earlier contracts
 passing.
 
-### 0. Documentation contract (current)
+### 0. Documentation contract (complete)
 
-Rename documentation, publish this plan, and make no implementation claim.
-There is no code commit in this task.
+The documentation rename and pre-code contract landed before the package
+scaffold. No implementation was claimed by that phase.
 
 ### 1. Rebase and baseline `pi-subagents`
 
@@ -196,12 +195,13 @@ Gate: focused tests plus full unit, integration, and E2E suites pass on Node 24
 Ubuntu and Windows. Publish a v2-capable release or RC before the consumer pins
 a final supported range.
 
-### 7. Final consumer identity and scaffold: red-green
+### 7. Final consumer identity and scaffold: red-green (current)
 
 On `chore/establish-pi-subagents-workflows`, first freeze package name, exports,
-extension paths, peer range, and metadata with manifest tests. Then add the
-minimal Node 24 ESM/npm scaffold, CI, release workflow, ignore rules, and
-approved license. Fail fast against v1-only providers.
+extension paths, host peer range, and metadata with manifest tests. Then add the
+minimal Node 24 ESM/npm scaffold, CI, safe release workflow, ignore rules, and
+approved license. Do not add `pi-subagents` until delegation v2 is published;
+provider compatibility belongs to the adapter slice in phase 12.
 
 Commit: `chore: establish pi-subagents-workflows package identity`
 
@@ -345,6 +345,6 @@ For IR v1 and the foreground release, this project will not:
   usage accounting;
 - add nested workflows, automatic cache reuse, arbitrary package resource
   discovery, parity retry policies, or expanded worktree policy to IR v1; or
-- publish npm packages or begin implementation as part of this documentation
-  task. The already-approved GitHub/local rename is handled as the next
-  controlled delivery step.
+- publish npm packages before the release gates pass. The documentation phase
+  is complete; the current implementation remains limited to the approved
+  identity/package scaffold.
