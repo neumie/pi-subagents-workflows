@@ -1,3 +1,12 @@
+export {
+	createPiSubagentsLeafAdapter,
+	PiSubagentsV2UnavailableError,
+} from "./adapters/pi-subagents.ts";
+export type {
+	DelegationEventBus,
+	PiSubagentsLeafAdapter,
+	PiSubagentsLeafAdapterOptions,
+} from "./adapters/pi-subagents.ts";
 export { executeWorkflow } from "./engine/index.ts";
 export type {
 	AgentStepOutcomeV1,
