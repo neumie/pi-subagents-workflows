@@ -6,12 +6,12 @@ strict JSON workflow definition format, a deterministic foreground scheduler,
 and a Pi tool/command adapter while leaving child-agent execution and policy in
 `pi-subagents`.
 
-**Status: strict restricted IR v1 parser and sequential foreground engine implemented.**
+**Status: strict restricted IR v1 parser plus sequential and barriered-parallel foreground execution implemented.**
 The package identity, public IR and engine types, immutable definition parser,
-typed sequential execution seam, no-op extension entry point, tests, and CI
-exist. Parallel/pipeline scheduling intentionally returns `unsupported_step` in
-this slice. The provider adapter, Workflow tool/command, and published npm
-package do not exist yet. See
+shared workflow semaphore, typed sequential/parallel execution seam, no-op
+extension entry point, tests, and CI exist. Pipeline scheduling remains a typed
+`unsupported_step`. The provider adapter, Workflow tool/command, and published
+npm package do not exist yet. See
 [PLAN.md](PLAN.md) for the TDD and release contract.
 
 ## Current branches and identity
@@ -144,8 +144,18 @@ bounded output modes, and one final-result reference.
 
 IR v1 parses sequential `agent` steps, barriered `parallel` cohorts, and true
 item-local `pipeline` stages. The current foreground engine executes sequential
-agent steps only; parsed parallel and pipeline steps return a typed
-`unsupported_step` failure until phases 10 and 11 land. Unknown fields, implicit
+agents and source-aligned parallel cohorts through one fair FIFO workflow-wide
+semaphore. Parallel groups form complete barriers, retain typed partial
+failures, support deterministic group/task references, and account accepted
+usage exactly once in source order before emitting terminal outcomes. Group
+projections and prompt templates are rendered with an incremental 256 KiB UTF-8
+ceiling. Successful text and structured values use an effective per-result cap
+of `min(1 MiB, floor(64 MiB / definition.limits.maxCalls))`, bounding retained
+successful-result payloads to 64 MiB per workflow; oversize provider results
+become typed `provider_contract_violation` failures. Progress delivery retains
+at most eight pending updates per active leaf and excess updates are ignored.
+Parsed pipeline steps still return a typed `unsupported_step` failure until
+phase 11 lands. Unknown fields, implicit
 string references, forward or invalid references, missing template values,
 unsupported policies, and malformed schemas or limits fail parsing.
 
@@ -182,8 +192,8 @@ npm test
 npm run pack:check
 ```
 
-`npm test` runs the unit parser, sequential-engine, manifest/tarball contracts,
-and strict typecheck. The packed-package test imports and executes the public
+`npm test` runs the unit parser, sequential/parallel engine, manifest/tarball
+contracts, and strict typecheck. The packed-package test imports and executes the public
 engine seam. There are no provider integration or end-to-end suites yet because
 the provider adapter and Workflow tool/command are not implemented.
 

@@ -229,11 +229,16 @@ failures without dispatch until phases 10 and 11.
 
 Commit: `feat(engine): execute sequential workflows with typed outcomes`
 
-### 10. Barriered parallel engine: red-green
+### 10. Barriered parallel engine: red-green (complete)
 
-Use controlled promises to prove overlap, a complete cohort barrier, stable slot
-order under reverse completion, one workflow-wide semaphore, partial typed
-failures, and no permit leaks. Then implement the shared semaphore path.
+Controlled-promise public engine tests prove capped FIFO overlap, a complete
+cohort barrier, source alignment under reverse completion, stable task
+identities, deterministic group/task references, partial typed failures,
+cancellation and hook-abort alignment, final group/task semantics, source-order
+usage overflow outcomes, bounded group rendering and retained success payloads,
+progress backpressure, exact counters, and no permit/listener leaks. Sequential
+leaves and parallel tasks now share one fair workflow-wide semaphore. Pipelines
+remain typed unsupported until phase 11.
 
 Commit: `feat(engine): add barriered parallel agent tasks`
 
