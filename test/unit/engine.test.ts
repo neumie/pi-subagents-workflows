@@ -641,7 +641,7 @@ test("prevents hooks and runners from mutating stable engine identities and outc
 	assert.equal(eventMutationResults.every((result) => result === false), true);
 	assert.deepEqual(
 		outcome.steps.map((step) => {
-			if (step.type !== "agent") throw new Error("unexpected unsupported step");
+			if (step.type !== "agent") throw new Error("unexpected non-agent step");
 			const { stepId, leaf } = step;
 			return {
 				stepId,
@@ -902,68 +902,4 @@ test("enforces invocation, prompt, and terminal output bounds without dispatch/a
 		"provider_contract_violation",
 	);
 	assert.deepEqual(output.usage, usage);
-});
-
-test("returns unsupported_step before dispatching a parsed pipeline step", async () => {
-	const parsed = parseWorkflowDefinition({
-		version: 1,
-		id: "unsupported",
-		args: {
-			items: { type: "array", items: { type: "string" }, maxItems: 1 },
-		},
-		limits: { concurrency: 2, maxCalls: 2, maxItems: 1 },
-		steps: [
-			{
-				type: "pipeline",
-				id: "group",
-				items: { ref: "arg", name: "items" },
-				onFailure: "stop-item",
-				stages: [
-					{
-						id: "stage",
-						agent: "worker",
-						prompt: {
-							template: "{{item}}",
-							values: { item: { ref: "item" } },
-						},
-						output: { mode: "text" },
-						limits: { timeoutMs: 1_000, maxTurns: 1, maxToolCalls: 0 },
-					},
-				],
-			},
-		],
-		result: { ref: "step", stepId: "group" },
-	});
-	let calls = 0;
-	const outcome = await executeWorkflow(
-		parsed,
-		{ items: [] },
-		async () => {
-			calls += 1;
-			return {
-				status: "completed",
-				result: { mode: "text", text: "no" },
-				usage,
-			};
-		},
-		{},
-	);
-	assert.equal(outcome.error?.code, "unsupported_step");
-	assert.deepEqual(outcome.steps, [
-		{
-			type: "unsupported",
-			stepId: "group",
-			stepType: "pipeline",
-			error: {
-				code: "unsupported_step",
-				message: "pipeline step group is not supported by this engine",
-			},
-		},
-	]);
-	assert.equal(calls, 0);
-	assert.deepEqual(outcome.counters, {
-		reservedCallSlots: 0,
-		actualLeafCalls: 0,
-		admittedItems: 0,
-	});
 });

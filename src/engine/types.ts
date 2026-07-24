@@ -3,6 +3,7 @@ import type {
 	JsonValue,
 	LeafLimitsV1,
 	OutputV1,
+	RefV1,
 } from "../ir/index.ts";
 
 export interface WorkflowUsageV1 {
@@ -150,7 +151,7 @@ export interface SkippedLeafOutcomeV1 {
 	readonly identity: LeafIdentityV1;
 	readonly usage: WorkflowUsageV1;
 	readonly reason: LeafSkipReasonV1;
-	readonly reference?: FinalRefV1;
+	readonly reference?: RefV1;
 }
 
 export type LeafOutcomeV1 =
@@ -171,17 +172,25 @@ export interface ParallelStepOutcomeV1 {
 	readonly slots: readonly LeafOutcomeV1[];
 }
 
-export interface UnsupportedStepOutcomeV1 {
-	readonly type: "unsupported";
+export type PipelineItemStatusV1 = LeafOutcomeV1["status"];
+
+export interface PipelineItemOutcomeV1 {
+	readonly index: number;
+	readonly status: PipelineItemStatusV1;
+	readonly stages: readonly LeafOutcomeV1[];
+}
+
+export interface PipelineStepOutcomeV1 {
+	readonly type: "pipeline";
 	readonly stepId: string;
-	readonly stepType: "pipeline";
-	readonly error: WorkflowErrorV1;
+	readonly items: readonly PipelineItemOutcomeV1[];
+	readonly error?: WorkflowErrorV1;
 }
 
 export type StepOutcomeV1 =
 	| AgentStepOutcomeV1
 	| ParallelStepOutcomeV1
-	| UnsupportedStepOutcomeV1;
+	| PipelineStepOutcomeV1;
 
 export interface WorkflowErrorV1 {
 	readonly code: string;
@@ -229,6 +238,9 @@ export type WorkflowEventV1 =
 			readonly stepId: string;
 			readonly taskId?: string;
 			readonly slot?: number;
+			readonly itemIndex?: number;
+			readonly stageIndex?: number;
+			readonly stageId?: string;
 			readonly phase: string;
 	  })
 	| (WorkflowEventBaseV1 & {
@@ -236,6 +248,9 @@ export type WorkflowEventV1 =
 			readonly stepId: string;
 			readonly taskId?: string;
 			readonly slot?: number;
+			readonly itemIndex?: number;
+			readonly stageIndex?: number;
+			readonly stageId?: string;
 			readonly message: string;
 	  })
 	| (WorkflowEventBaseV1 & {

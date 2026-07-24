@@ -6,12 +6,12 @@ strict JSON workflow definition format, a deterministic foreground scheduler,
 and a Pi tool/command adapter while leaving child-agent execution and policy in
 `pi-subagents`.
 
-**Status: strict restricted IR v1 parser plus sequential and barriered-parallel foreground execution implemented.**
+**Status: strict restricted IR v1 parser plus sequential, barriered-parallel,
+and item-local pipeline foreground execution implemented.**
 The package identity, public IR and engine types, immutable definition parser,
-shared workflow semaphore, typed sequential/parallel execution seam, no-op
-extension entry point, tests, and CI exist. Pipeline scheduling remains a typed
-`unsupported_step`. The provider adapter, Workflow tool/command, and published
-npm package do not exist yet. See
+shared workflow semaphore, typed aligned execution seam, no-op extension entry
+point, tests, and CI exist. The provider adapter, Workflow tool/command, and
+published npm package do not exist yet. See
 [PLAN.md](PLAN.md) for the TDD and release contract.
 
 ## Current branches and identity
@@ -142,22 +142,37 @@ bounded output modes, and one final-result reference.
 }
 ```
 
-IR v1 parses sequential `agent` steps, barriered `parallel` cohorts, and true
-item-local `pipeline` stages. The current foreground engine executes sequential
-agents and source-aligned parallel cohorts through one fair FIFO workflow-wide
-semaphore. Parallel groups form complete barriers, retain typed partial
-failures, support deterministic group/task references, and account accepted
-usage exactly once in source order before emitting terminal outcomes. Group
-projections and prompt templates are rendered with an incremental 256 KiB UTF-8
-ceiling. Successful text and structured values use an effective per-result cap
-of `min(1 MiB, floor(64 MiB / definition.limits.maxCalls))`, bounding retained
+IR v1 parses and executes sequential `agent` steps, barriered `parallel`
+cohorts, and true item-local `pipeline` stages through one fair FIFO
+workflow-wide semaphore. A pipeline reserves its complete actual item and stage
+slot count atomically, starts one serial lane per source item, and lets a lane
+enqueue its next stage as soon as that item succeeds—there is no stage-wide
+barrier. `stop-item` materializes later stages as `upstream_failed`; caller or
+hook cancellation instead aligns all not-yet-reached stages as `cancelled`.
+Other lanes and later top-level steps continue after ordinary failures or a
+pipeline admission error.
+
+Parallel and pipeline groups retain typed partial failures and expose bounded,
+deterministic source-aligned projections to later templates. A final group
+reference succeeds with its complete aligned outcome, including partial leaf
+failures or an inspectable `limit_exceeded` admission error; caller cancellation
+still wins. Pipeline item status is the first non-success stage status, or
+`succeeded` when every stage succeeds. Group projections and prompt templates
+are rendered with an incremental 256 KiB UTF-8 ceiling. Successful text and
+structured values use an effective per-result cap of
+`min(1 MiB, floor(64 MiB / definition.limits.maxCalls))`, bounding retained
 successful-result payloads to 64 MiB per workflow; oversize provider results
-become typed `provider_contract_violation` failures. Progress delivery retains
-at most eight pending updates per active leaf and excess updates are ignored.
-Parsed pipeline steps still return a typed `unsupported_step` failure until
-phase 11 lands. Unknown fields, implicit
-string references, forward or invalid references, missing template values,
-unsupported policies, and malformed schemas or limits fail parsing.
+become typed `provider_contract_violation` failures. Every reported usage field
+is capped per leaf at
+`floor(Number.MAX_SAFE_INTEGER / definition.limits.maxCalls)`; integer usage
+fields must still be safe integers, and reported turns/tool calls must still
+respect their leaf limits. This ensures that at most `maxCalls` accepted usages
+cannot overflow later aggregation. Accepted usage and `leaf_terminal` events
+are accounted exactly once in item/stage source order, independent of settlement
+order. Progress delivery retains at most eight pending updates per active leaf
+and excess updates are ignored. Unknown fields,
+implicit string references, forward or invalid references, missing template
+values, unsupported policies, and malformed schemas or limits fail parsing.
 
 ## Phased roadmap
 
