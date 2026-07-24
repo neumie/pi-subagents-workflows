@@ -165,14 +165,23 @@ export interface AgentStepOutcomeV1 {
 	readonly leaf: LeafOutcomeV1;
 }
 
+export interface ParallelStepOutcomeV1 {
+	readonly type: "parallel";
+	readonly stepId: string;
+	readonly slots: readonly LeafOutcomeV1[];
+}
+
 export interface UnsupportedStepOutcomeV1 {
 	readonly type: "unsupported";
 	readonly stepId: string;
-	readonly stepType: "parallel" | "pipeline";
+	readonly stepType: "pipeline";
 	readonly error: WorkflowErrorV1;
 }
 
-export type StepOutcomeV1 = AgentStepOutcomeV1 | UnsupportedStepOutcomeV1;
+export type StepOutcomeV1 =
+	| AgentStepOutcomeV1
+	| ParallelStepOutcomeV1
+	| UnsupportedStepOutcomeV1;
 
 export interface WorkflowErrorV1 {
 	readonly code: string;
@@ -218,11 +227,15 @@ export type WorkflowEventV1 =
 	| (WorkflowEventBaseV1 & {
 			readonly type: "phase";
 			readonly stepId: string;
+			readonly taskId?: string;
+			readonly slot?: number;
 			readonly phase: string;
 	  })
 	| (WorkflowEventBaseV1 & {
 			readonly type: "log";
 			readonly stepId: string;
+			readonly taskId?: string;
+			readonly slot?: number;
 			readonly message: string;
 	  })
 	| (WorkflowEventBaseV1 & {

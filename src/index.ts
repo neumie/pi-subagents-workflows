@@ -16,6 +16,7 @@ export type {
 	LeafRunnerTerminalV1,
 	LeafSkipReasonV1,
 	NonCompletedLeafRunnerTerminalV1,
+	ParallelStepOutcomeV1,
 	SkippedLeafOutcomeV1,
 	StepOutcomeV1,
 	SucceededLeafOutcomeV1,

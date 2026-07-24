@@ -584,7 +584,7 @@ test("removes caller abort listeners after every sequential leaf", async () => {
 	);
 
 	assert.equal(outcome.status, "succeeded");
-	assert.equal(Math.max(...observedCounts), 2);
+	assert.equal(Math.max(...observedCounts), 1);
 	assert.equal(getEventListeners(controller.signal, "abort").length, 0);
 });
 
@@ -904,21 +904,28 @@ test("enforces invocation, prompt, and terminal output bounds without dispatch/a
 	assert.deepEqual(output.usage, usage);
 });
 
-test("returns unsupported_step before dispatching a parsed parallel or pipeline step", async () => {
+test("returns unsupported_step before dispatching a parsed pipeline step", async () => {
 	const parsed = parseWorkflowDefinition({
 		version: 1,
 		id: "unsupported",
-		args: {},
+		args: {
+			items: { type: "array", items: { type: "string" }, maxItems: 1 },
+		},
 		limits: { concurrency: 2, maxCalls: 2, maxItems: 1 },
 		steps: [
 			{
-				type: "parallel",
+				type: "pipeline",
 				id: "group",
-				tasks: [
+				items: { ref: "arg", name: "items" },
+				onFailure: "stop-item",
+				stages: [
 					{
-						id: "task",
+						id: "stage",
 						agent: "worker",
-						prompt: { template: "literal", values: {} },
+						prompt: {
+							template: "{{item}}",
+							values: { item: { ref: "item" } },
+						},
 						output: { mode: "text" },
 						limits: { timeoutMs: 1_000, maxTurns: 1, maxToolCalls: 0 },
 					},
@@ -930,7 +937,7 @@ test("returns unsupported_step before dispatching a parsed parallel or pipeline 
 	let calls = 0;
 	const outcome = await executeWorkflow(
 		parsed,
-		{},
+		{ items: [] },
 		async () => {
 			calls += 1;
 			return {
@@ -946,11 +953,10 @@ test("returns unsupported_step before dispatching a parsed parallel or pipeline 
 		{
 			type: "unsupported",
 			stepId: "group",
-			stepType: "parallel",
+			stepType: "pipeline",
 			error: {
 				code: "unsupported_step",
-				message:
-					"parallel step group is not supported by the sequential engine",
+				message: "pipeline step group is not supported by this engine",
 			},
 		},
 	]);

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import {
-	canonicalJson,
+	boundedCanonicalJson,
 	cloneSafeJson,
 	utf8Bytes,
 	validateJsonValue,
@@ -11,6 +11,8 @@ import type {
 	AgentStepV1,
 	FinalRefV1,
 	JsonValue,
+	ParallelTaskV1,
+	RefV1,
 	WorkflowDefinitionV1,
 } from "../ir/index.ts";
 import type {
@@ -22,6 +24,7 @@ import type {
 	LeafResultV1,
 	LeafRunner,
 	LeafRunnerTerminalV1,
+	ParallelStepOutcomeV1,
 	StepOutcomeV1,
 	UnsupportedStepOutcomeV1,
 	WorkflowErrorV1,
@@ -30,6 +33,8 @@ import type {
 	WorkflowOutcomeV1,
 	WorkflowUsageV1,
 } from "./types.ts";
+
+type LeafDefinitionV1 = AgentStepV1 | ParallelTaskV1;
 
 const ZERO_USAGE: WorkflowUsageV1 = Object.freeze({
 	input: 0,
@@ -55,8 +60,12 @@ const TERMINAL_STATUSES = new Set([
 	"unavailable_context",
 ]);
 
+const MIB = 1024 * 1024;
+const WORKFLOW_SUCCESS_PAYLOAD_BUDGET = 64 * MIB;
+const MAX_PENDING_PROGRESS_PER_LEAF = 8;
+
 const JSON_MIB_LIMITS = {
-	maximumBytes: 1024 * 1024,
+	maximumBytes: MIB,
 	maximumDepth: 32,
 	maximumEntries: 20_000,
 	subject: "value",
@@ -121,7 +130,11 @@ function freezeObservable<T>(value: T): T {
 
 function skipped(
 	identity: LeafIdentityV1,
-	reason: "unavailable_reference" | "prompt_too_large" | "cancelled",
+	reason:
+		| "unavailable_reference"
+		| "not_admitted"
+		| "prompt_too_large"
+		| "cancelled",
 	reference?: FinalRefV1,
 ): LeafOutcomeV1 {
 	return reference === undefined
@@ -256,7 +269,11 @@ function validateProviderError(value: JsonValue): LeafErrorV1 {
 	return value as unknown as LeafErrorV1;
 }
 
-function validateResult(value: JsonValue, step: AgentStepV1): LeafResultV1 {
+function validateResult(
+	value: JsonValue,
+	step: LeafDefinitionV1,
+	maximumResultBytes: number,
+): LeafResultV1 {
 	if (!isRecord(value))
 		throw new ProviderContractFailure(
 			"completed terminal result must be an object",
@@ -267,9 +284,13 @@ function validateResult(value: JsonValue, step: AgentStepV1): LeafResultV1 {
 		);
 	if (value.mode === "text") {
 		exactKeys(value, ["mode", "text"]);
-		if (typeof value.text !== "string" || utf8Bytes(value.text) > 1024 * 1024) {
+		if (
+			typeof value.text !== "string" ||
+			utf8Bytes(value.text) > maximumResultBytes
+		) {
 			throw new ProviderContractFailure(
-				"text result exceeds 1 MiB or is invalid",
+				`text result exceeds the effective ${maximumResultBytes}-byte cap ` +
+					"(min(1 MiB, floor(64 MiB / maxCalls))) or is invalid",
 			);
 		}
 		return { mode: "text", text: value.text };
@@ -290,8 +311,11 @@ function validateResult(value: JsonValue, step: AgentStepV1): LeafResultV1 {
 			throw new ProviderContractFailure(
 				`structured result is schema-invalid: ${issue}`,
 			);
-		if (utf8Bytes(canonicalJson(structured)) > 1024 * 1024) {
-			throw new ProviderContractFailure("structured result exceeds 1 MiB");
+		if (boundedCanonicalJson(structured, maximumResultBytes) === undefined) {
+			throw new ProviderContractFailure(
+				`structured result exceeds the effective ${maximumResultBytes}-byte cap ` +
+					"(min(1 MiB, floor(64 MiB / maxCalls)))",
+			);
 		}
 		return { mode: "structured", value: structured };
 	}
@@ -300,8 +324,9 @@ function validateResult(value: JsonValue, step: AgentStepV1): LeafResultV1 {
 
 function validateTerminal(
 	terminal: unknown,
-	step: AgentStepV1,
+	step: LeafDefinitionV1,
 	identity: LeafIdentityV1,
+	maximumResultBytes: number,
 ): LeafOutcomeV1 {
 	let cloned: JsonValue;
 	try {
@@ -360,7 +385,11 @@ function validateTerminal(
 		return {
 			status: "succeeded",
 			identity,
-			result: validateResult(cloned.result as JsonValue, step),
+			result: validateResult(
+				cloned.result as JsonValue,
+				step,
+				maximumResultBytes,
+			),
 			usage,
 			...details,
 		};
@@ -475,21 +504,31 @@ class EventEmitter {
 	private sequence = 0;
 	private queue: Promise<void> = Promise.resolve();
 	private failure: HookFailure | undefined;
+	private stopped = false;
+	private activeEventType: WorkflowEventV1["type"] | undefined;
 	private readonly failurePromiseValue: Promise<HookFailure>;
 	private resolveFailure!: (failure: HookFailure) => void;
+	private readonly abandonmentPromise: Promise<void>;
+	private resolveAbandonment!: () => void;
 	private readonly runId: string;
 	private readonly callback:
 		| ((event: WorkflowEventV1) => void | Promise<void>)
 		| undefined;
+	private readonly onFailure: ((failure: HookFailure) => void) | undefined;
 
 	constructor(
 		runId: string,
 		callback: ((event: WorkflowEventV1) => void | Promise<void>) | undefined,
+		onFailure?: (failure: HookFailure) => void,
 	) {
 		this.runId = runId;
 		this.callback = callback;
+		this.onFailure = onFailure;
 		this.failurePromiseValue = new Promise((resolve) => {
 			this.resolveFailure = resolve;
+		});
+		this.abandonmentPromise = new Promise((resolve) => {
+			this.resolveAbandonment = resolve;
 		});
 	}
 
@@ -498,7 +537,7 @@ class EventEmitter {
 	}
 
 	emit(event: WorkflowEventInput): Promise<void> {
-		if (this.callback === undefined) return Promise.resolve();
+		if (this.callback === undefined || this.stopped) return Promise.resolve();
 		if (this.failure !== undefined) return Promise.reject(this.failure);
 		const sequenced = freezeObservable({
 			...event,
@@ -506,74 +545,41 @@ class EventEmitter {
 			sequence: ++this.sequence,
 		} as WorkflowEventV1);
 		const operation = this.queue.then(async () => {
+			if (this.stopped) return;
 			if (this.failure !== undefined) throw this.failure;
-			await this.callback?.(sequenced);
+			this.activeEventType = sequenced.type;
+			try {
+				await this.callback?.(sequenced);
+			} finally {
+				if (this.activeEventType === sequenced.type)
+					this.activeEventType = undefined;
+			}
 		});
 		this.queue = operation.catch((error: unknown) => {
+			if (this.stopped) return;
 			if (this.failure === undefined) {
 				this.failure =
 					error instanceof HookFailure ? error : new HookFailure(error);
 				this.resolveFailure(this.failure);
+				this.onFailure?.(this.failure);
 			}
 		});
 		return operation.catch((error: unknown) => {
+			if (this.stopped) return;
 			throw error instanceof HookFailure ? error : new HookFailure(error);
 		});
 	}
 
+	abandonActiveProgress(): void {
+		if (this.activeEventType !== "leaf_progress" || this.stopped) return;
+		this.stopped = true;
+		this.resolveAbandonment();
+	}
+
 	async drain(): Promise<void> {
-		await this.queue;
-		if (this.failure !== undefined) throw this.failure;
+		await Promise.race([this.queue, this.abandonmentPromise]);
+		if (!this.stopped && this.failure !== undefined) throw this.failure;
 	}
-}
-
-function renderPrompt(
-	step: AgentStepV1,
-	args: Readonly<Record<string, JsonValue>>,
-	prior: ReadonlyMap<string, AgentStepOutcomeV1>,
-): { prompt?: string; unavailable?: FinalRefV1; tooLarge?: true } {
-	const renderedValues = new Map<string, string>();
-	for (const [name, reference] of Object.entries(step.prompt.values)) {
-		let value: JsonValue;
-		if (reference.ref === "arg") {
-			value = args[reference.name]!;
-		} else if (reference.ref === "step") {
-			const producer = prior.get(reference.stepId);
-			if (producer?.leaf.status !== "succeeded")
-				return { unavailable: reference };
-			value =
-				producer.leaf.result.mode === "text"
-					? producer.leaf.result.text
-					: producer.leaf.result.value;
-		} else if (reference.ref === "task") {
-			return { unavailable: reference };
-		} else {
-			throw new Error(
-				`local reference ${reference.ref} reached a sequential agent`,
-			);
-		}
-		renderedValues.set(
-			name,
-			typeof value === "string" ? value : canonicalJson(value),
-		);
-	}
-
-	let prompt = "";
-	const source = step.prompt.template;
-	for (let index = 0; index < source.length; ) {
-		const opening = source.indexOf("{{", index);
-		if (opening < 0) {
-			prompt += source.slice(index);
-			break;
-		}
-		prompt += source.slice(index, opening);
-		const closing = source.indexOf("}}", opening + 2);
-		const name = source.slice(opening + 2, closing);
-		prompt += renderedValues.get(name) ?? "";
-		if (utf8Bytes(prompt) > 256 * 1024) return { tooLarge: true };
-		index = closing + 2;
-	}
-	return utf8Bytes(prompt) > 256 * 1024 ? { tooLarge: true } : { prompt };
 }
 
 function isAbortSignal(value: unknown): value is AbortSignal {
@@ -592,7 +598,413 @@ interface MutableCounters {
 	admittedItems: number;
 }
 
-async function executeStartedWorkflow(
+function parallelIdentity(
+	runId: string,
+	stepId: string,
+	taskId: string,
+	slot: number,
+): LeafIdentityV1 {
+	return Object.freeze({
+		runId,
+		nodeId: `parallel:${stepId}:task:${taskId}`,
+		stepId,
+		taskId,
+		slot,
+	});
+}
+
+function projectedLeafValue(leaf: LeafOutcomeV1): JsonValue | undefined {
+	if (leaf.status !== "succeeded") return undefined;
+	return leaf.result.mode === "text" ? leaf.result.text : leaf.result.value;
+}
+
+function projectedLeafError(
+	leaf: LeafOutcomeV1,
+): { code: string; message: string } | undefined {
+	if (leaf.status === "succeeded") return undefined;
+	if ("error" in leaf && leaf.error !== undefined) {
+		return {
+			code: boundedText(leaf.error.code, 128),
+			message: boundedText(leaf.error.message, 1024),
+		};
+	}
+	if (leaf.status === "skipped") {
+		return { code: leaf.reason, message: `leaf skipped: ${leaf.reason}` };
+	}
+	return {
+		code: leaf.status,
+		message: `leaf ended with status ${leaf.status}`,
+	};
+}
+
+function parallelProjection(outcome: ParallelStepOutcomeV1): JsonValue {
+	return {
+		slots: outcome.slots.map((leaf) => {
+			const value = projectedLeafValue(leaf);
+			const error = projectedLeafError(leaf);
+			return {
+				taskId: leaf.identity.taskId!,
+				status: leaf.status,
+				...(value === undefined ? {} : { value }),
+				...(error === undefined ? {} : { error }),
+			};
+		}),
+	};
+}
+
+function referenceIdentity(reference: RefV1): string {
+	if (reference.ref === "arg") return `arg:${reference.name}`;
+	if (reference.ref === "step") return `step:${reference.stepId}`;
+	if (reference.ref === "task")
+		return `task:${reference.stepId}:${reference.taskId}`;
+	throw new Error(
+		`local reference ${reference.ref} reached a non-pipeline leaf`,
+	);
+}
+
+function unavailableReference(
+	reference: RefV1,
+	prior: ReadonlyMap<string, AgentStepOutcomeV1 | ParallelStepOutcomeV1>,
+): FinalRefV1 | undefined {
+	if (reference.ref === "arg") return undefined;
+	if (reference.ref === "step") {
+		const producer = prior.get(reference.stepId);
+		if (producer?.type === "parallel") return undefined;
+		return producer?.type === "agent" &&
+			projectedLeafValue(producer.leaf) !== undefined
+			? undefined
+			: reference;
+	}
+	if (reference.ref === "task") {
+		const producer = prior.get(reference.stepId);
+		const leaf =
+			producer?.type === "parallel"
+				? producer.slots.find(
+						(candidate) => candidate.identity.taskId === reference.taskId,
+					)
+				: undefined;
+		return leaf !== undefined && projectedLeafValue(leaf) !== undefined
+			? undefined
+			: reference;
+	}
+	throw new Error(
+		`local reference ${reference.ref} reached a non-pipeline leaf`,
+	);
+}
+
+function resolveAvailableReference(
+	reference: RefV1,
+	args: Readonly<Record<string, JsonValue>>,
+	prior: ReadonlyMap<string, AgentStepOutcomeV1 | ParallelStepOutcomeV1>,
+): JsonValue {
+	if (reference.ref === "arg") return args[reference.name]!;
+	if (reference.ref === "step") {
+		const producer = prior.get(reference.stepId)!;
+		return producer.type === "parallel"
+			? parallelProjection(producer)
+			: projectedLeafValue(producer.leaf)!;
+	}
+	if (reference.ref === "task") {
+		const producer = prior.get(reference.stepId)!;
+		if (producer.type !== "parallel")
+			throw new Error("available task reference has no parallel producer");
+		const leaf = producer.slots.find(
+			(candidate) => candidate.identity.taskId === reference.taskId,
+		)!;
+		return projectedLeafValue(leaf)!;
+	}
+	throw new Error(
+		`local reference ${reference.ref} reached a non-pipeline leaf`,
+	);
+}
+
+function renderLeafPrompt(
+	leaf: LeafDefinitionV1,
+	args: Readonly<Record<string, JsonValue>>,
+	prior: ReadonlyMap<string, AgentStepOutcomeV1 | ParallelStepOutcomeV1>,
+): { prompt?: string; unavailable?: FinalRefV1; tooLarge?: true } {
+	const availability = new Map<string, FinalRefV1 | null>();
+	for (const reference of Object.values(leaf.prompt.values)) {
+		const identity = referenceIdentity(reference);
+		let unavailable = availability.get(identity);
+		if (unavailable === undefined) {
+			unavailable = unavailableReference(reference, prior) ?? null;
+			availability.set(identity, unavailable);
+		}
+		if (unavailable !== null) return { unavailable };
+	}
+
+	const maximumBytes = 256 * 1024;
+	let bytes = 0;
+	const parts: string[] = [];
+	const resolvedValues = new Map<string, JsonValue>();
+	const renderedValues = new Map<string, { text: string; bytes: number }>();
+	const append = (text: string, knownBytes?: number): boolean => {
+		const nextBytes = knownBytes ?? utf8Bytes(text);
+		if (bytes + nextBytes > maximumBytes) return false;
+		bytes += nextBytes;
+		parts.push(text);
+		return true;
+	};
+	const appendValue = (name: string): boolean => {
+		const reference = leaf.prompt.values[name]!;
+		const identity = referenceIdentity(reference);
+		let rendered = renderedValues.get(identity);
+		if (rendered === undefined) {
+			let value = resolvedValues.get(identity);
+			if (value === undefined) {
+				value = resolveAvailableReference(reference, args, prior);
+				resolvedValues.set(identity, value);
+			}
+			const text =
+				typeof value === "string"
+					? value
+					: boundedCanonicalJson(value, maximumBytes - bytes);
+			if (text === undefined) return false;
+			rendered = { text, bytes: utf8Bytes(text) };
+			renderedValues.set(identity, rendered);
+		}
+		return append(rendered.text, rendered.bytes);
+	};
+
+	const source = leaf.prompt.template;
+	for (let index = 0; index < source.length; ) {
+		const opening = source.indexOf("{{", index);
+		if (opening < 0) {
+			if (!append(source.slice(index))) return { tooLarge: true };
+			break;
+		}
+		if (!append(source.slice(index, opening))) return { tooLarge: true };
+		const closing = source.indexOf("}}", opening + 2);
+		const name = source.slice(opening + 2, closing);
+		if (!appendValue(name)) return { tooLarge: true };
+		index = closing + 2;
+	}
+	return { prompt: parts.join("") };
+}
+
+type PermitRelease = () => void;
+
+class FifoSemaphore {
+	private active = 0;
+	private cancelled = false;
+	private readonly capacity: number;
+	private readonly queue: Array<(release: PermitRelease | null) => void> = [];
+
+	constructor(capacity: number) {
+		this.capacity = capacity;
+	}
+
+	acquire(): Promise<PermitRelease | null> {
+		if (this.cancelled) return Promise.resolve(null);
+		if (this.active < this.capacity) {
+			this.active += 1;
+			return Promise.resolve(this.releaseFunction());
+		}
+		return new Promise((resolve) => this.queue.push(resolve));
+	}
+
+	cancelQueued(): void {
+		this.cancelled = true;
+		for (const resolve of this.queue.splice(0)) resolve(null);
+	}
+
+	private releaseFunction(): PermitRelease {
+		let released = false;
+		return () => {
+			if (released) return;
+			released = true;
+			this.active -= 1;
+			this.dispatch();
+		};
+	}
+
+	private dispatch(): void {
+		while (!this.cancelled && this.active < this.capacity) {
+			const resolve = this.queue.shift();
+			if (resolve === undefined) break;
+			this.active += 1;
+			resolve(this.releaseFunction());
+		}
+	}
+}
+
+async function emitMeta(
+	emitter: EventEmitter,
+	stepId: string,
+	meta: LeafDefinitionV1["meta"],
+	signal?: AbortSignal,
+	identity?: LeafIdentityV1,
+): Promise<void> {
+	const taskFields =
+		identity?.taskId === undefined
+			? {}
+			: { taskId: identity.taskId, slot: identity.slot! };
+	if (meta?.phase !== undefined) {
+		await emitter.emit({
+			type: "phase",
+			stepId,
+			...taskFields,
+			phase: meta.phase,
+		});
+	}
+	if (signal?.aborted === true) return;
+	if (meta?.log !== undefined) {
+		await emitter.emit({
+			type: "log",
+			stepId,
+			...taskFields,
+			message: meta.log,
+		});
+	}
+}
+
+async function executeScheduledLeaf(
+	leafDefinition: LeafDefinitionV1,
+	identity: LeafIdentityV1,
+	args: Readonly<Record<string, JsonValue>>,
+	prior: ReadonlyMap<string, AgentStepOutcomeV1 | ParallelStepOutcomeV1>,
+	leafRunner: LeafRunner,
+	emitter: EventEmitter,
+	semaphore: FifoSemaphore,
+	workflowSignal: AbortSignal,
+	counters: MutableCounters,
+	maximumResultBytes: number,
+): Promise<LeafOutcomeV1> {
+	if (workflowSignal.aborted) return skipped(identity, "cancelled");
+	const rendered = renderLeafPrompt(leafDefinition, args, prior);
+	if (rendered.unavailable !== undefined) {
+		return skipped(identity, "unavailable_reference", rendered.unavailable);
+	}
+	if (rendered.tooLarge === true) return skipped(identity, "prompt_too_large");
+
+	const release = await semaphore.acquire();
+	if (release === null) return skipped(identity, "cancelled");
+	if (workflowSignal.aborted) {
+		release();
+		return skipped(identity, "cancelled");
+	}
+
+	try {
+		await emitMeta(
+			emitter,
+			identity.stepId,
+			leafDefinition.meta,
+			workflowSignal,
+			identity,
+		);
+		if (workflowSignal.aborted) return skipped(identity, "cancelled");
+		await emitter.emit({
+			type: "leaf_started",
+			identity,
+			agent: leafDefinition.agent,
+		});
+		if (workflowSignal.aborted) {
+			return { status: "cancelled", identity, usage: ZERO_USAGE };
+		}
+
+		const controller = new AbortController();
+		let timedOut = false;
+		let active = true;
+		const abortFromWorkflow = (): void =>
+			controller.abort(workflowSignal.reason);
+		workflowSignal.addEventListener("abort", abortFromWorkflow, { once: true });
+		if (workflowSignal.aborted) abortFromWorkflow();
+		let onControllerAbort!: () => void;
+		const abortPromise = new Promise<
+			{ kind: "timeout" } | { kind: "cancelled" }
+		>((resolve) => {
+			onControllerAbort = (): void =>
+				resolve({ kind: timedOut ? "timeout" : "cancelled" });
+			controller.signal.addEventListener("abort", onControllerAbort, {
+				once: true,
+			});
+			if (controller.signal.aborted) onControllerAbort();
+		});
+		let timeout: ReturnType<typeof setTimeout> | undefined;
+		let pendingProgress = 0;
+		try {
+			if (controller.signal.aborted) {
+				return { status: "cancelled", identity, usage: ZERO_USAGE };
+			}
+			timeout = setTimeout(() => {
+				timedOut = true;
+				controller.abort(new Error("leaf timeout"));
+			}, leafDefinition.limits.timeoutMs);
+			counters.actualLeafCalls += 1;
+			const progress = async (update: LeafProgressUpdateV1): Promise<void> => {
+				if (!active || pendingProgress >= MAX_PENDING_PROGRESS_PER_LEAF) return;
+				pendingProgress += 1;
+				try {
+					const bounded = progressEvent(update);
+					if (bounded === undefined) return;
+					await emitter.emit({
+						type: "leaf_progress",
+						identity,
+						...bounded,
+					});
+				} finally {
+					pendingProgress -= 1;
+				}
+			};
+			const request = Object.freeze({
+				identity,
+				agent: leafDefinition.agent,
+				prompt: rendered.prompt!,
+				output: leafDefinition.output,
+				limits: leafDefinition.limits,
+				signal: controller.signal,
+				progress,
+			});
+			const runnerPromise = Promise.resolve()
+				.then(() => leafRunner(request))
+				.then(
+					(terminal) => ({ kind: "terminal" as const, terminal }),
+					(error: unknown) => ({ kind: "runner_rejection" as const, error }),
+				);
+			const hookPromise = emitter.failurePromise.then((error) => ({
+				kind: "hook" as const,
+				error,
+			}));
+			const settled = await Promise.race([
+				runnerPromise,
+				abortPromise,
+				hookPromise,
+			]);
+			active = false;
+			if (settled.kind === "hook") throw settled.error;
+			if (settled.kind === "cancelled") {
+				return { status: "cancelled", identity, usage: ZERO_USAGE };
+			}
+			if (settled.kind === "timeout") {
+				return { status: "timed_out", identity, usage: ZERO_USAGE };
+			}
+			if (settled.kind === "runner_rejection") {
+				return providerContractOutcome(identity, settled.error);
+			}
+			await emitter.drain();
+			try {
+				return validateTerminal(
+					settled.terminal,
+					leafDefinition,
+					identity,
+					maximumResultBytes,
+				);
+			} catch (error) {
+				return providerContractOutcome(identity, error);
+			}
+		} finally {
+			active = false;
+			if (timeout !== undefined) clearTimeout(timeout);
+			controller.signal.removeEventListener("abort", onControllerAbort);
+			workflowSignal.removeEventListener("abort", abortFromWorkflow);
+		}
+	} finally {
+		release();
+	}
+}
+
+async function executeScheduledWorkflow(
 	definition: WorkflowDefinitionV1,
 	argsInput: unknown,
 	leafRunner: LeafRunner,
@@ -600,18 +1012,28 @@ async function executeStartedWorkflow(
 	runId: string,
 ): Promise<WorkflowOutcomeV1> {
 	const steps: StepOutcomeV1[] = [];
-	const prior = new Map<string, AgentStepOutcomeV1>();
+	const prior = new Map<string, AgentStepOutcomeV1 | ParallelStepOutcomeV1>();
 	const counters: MutableCounters = {
 		reservedCallSlots: 0,
 		actualLeafCalls: 0,
 		admittedItems: 0,
 	};
+	const maximumResultBytes = Math.min(
+		MIB,
+		Math.floor(WORKFLOW_SUCCESS_PAYLOAD_BUDGET / definition.limits.maxCalls),
+	);
 	let aggregate = ZERO_USAGE;
 	let callerCancelled = false;
+	let hookFailure: HookFailure | undefined;
+	const workflowController = new AbortController();
+	const semaphore = new FifoSemaphore(definition.limits.concurrency);
+	const abortWorkflow = (reason: unknown): void => {
+		if (!workflowController.signal.aborted) workflowController.abort(reason);
+		semaphore.cancelQueued();
+	};
 
 	let callback: WorkflowHooksV1["onEvent"];
 	let callerSignal: AbortSignal | undefined;
-	let hookConfigurationFailure: HookFailure | undefined;
 	try {
 		if (typeof hooksInput !== "object" || hooksInput === null)
 			throw new HookFailure("invalid workflow hooks");
@@ -622,12 +1044,14 @@ async function executeStartedWorkflow(
 		if (callerSignal !== undefined && !isAbortSignal(callerSignal))
 			throw new HookFailure("invalid workflow hooks");
 	} catch (error) {
-		hookConfigurationFailure =
-			error instanceof HookFailure ? error : new HookFailure(error);
+		hookFailure = error instanceof HookFailure ? error : new HookFailure(error);
 		callback = undefined;
 		callerSignal = undefined;
 	}
-	const emitter = new EventEmitter(runId, callback);
+	const emitter = new EventEmitter(runId, callback, (failure) => {
+		hookFailure ??= failure;
+		abortWorkflow(failure);
+	});
 
 	const base = (): Omit<WorkflowOutcomeV1, "status" | "result"> => ({
 		version: 1,
@@ -637,10 +1061,18 @@ async function executeStartedWorkflow(
 		usage: aggregate,
 		counters: { ...counters },
 	});
-
 	const finalize = async (
 		outcome: WorkflowOutcomeV1,
 	): Promise<WorkflowOutcomeV1> => {
+		if (hookFailure !== undefined) {
+			if (callerCancelled) return outcome;
+			return {
+				...base(),
+				status: "failed",
+				result: null,
+				error: workflowError("hook_error", hookFailure.message),
+			};
+		}
 		try {
 			await emitter.emit({
 				type: "workflow_terminal",
@@ -661,25 +1093,37 @@ async function executeStartedWorkflow(
 		}
 	};
 
-	try {
-		if (hookConfigurationFailure !== undefined) {
-			return finalize({
-				...base(),
-				status: "failed",
-				result: null,
-				error: workflowError(
-					"hook_error",
-					boundedMessage(hookConfigurationFailure, "invalid workflow hooks"),
-				),
-			});
-		}
+	if (hookFailure !== undefined) {
+		return finalize({
+			...base(),
+			status: "failed",
+			result: null,
+			error: workflowError("hook_error", hookFailure.message),
+		});
+	}
 
+	const callerAbort = (): void => {
+		callerCancelled = true;
+		emitter.abandonActiveProgress();
+		abortWorkflow(callerSignal?.reason);
+	};
+	try {
+		callerSignal?.addEventListener("abort", callerAbort, { once: true });
+		if (callerSignal?.aborted === true) callerAbort();
 		await emitter.emit({ type: "workflow_started", workflowId: definition.id });
 
 		let args: Record<string, JsonValue>;
 		try {
 			args = cloneInvocationArgs(definition, argsInput);
 		} catch (error) {
+			if (callerCancelled) {
+				return finalize({
+					...base(),
+					status: "cancelled",
+					result: null,
+					error: workflowError("cancelled", "workflow cancelled by caller"),
+				});
+			}
 			return finalize({
 				...base(),
 				status: "failed",
@@ -691,235 +1135,96 @@ async function executeStartedWorkflow(
 			});
 		}
 
-		const callerIsAborted = (): boolean => {
+		const settleRawLeaf = async (
+			leafDefinition: LeafDefinitionV1,
+			identity: LeafIdentityV1,
+		): Promise<LeafOutcomeV1> => {
 			try {
-				return callerSignal?.aborted === true;
+				return await executeScheduledLeaf(
+					leafDefinition,
+					identity,
+					args,
+					prior,
+					leafRunner,
+					emitter,
+					semaphore,
+					workflowController.signal,
+					counters,
+					maximumResultBytes,
+				);
 			} catch (error) {
-				throw new HookFailure(error);
+				if (!(error instanceof HookFailure)) throw error;
+				hookFailure ??= error;
+				abortWorkflow(error);
+				return { status: "cancelled", identity, usage: ZERO_USAGE };
 			}
 		};
-		const addCallerAbortListener = (listener: () => void): void => {
-			try {
-				callerSignal?.addEventListener("abort", listener, { once: true });
-			} catch (error) {
-				throw new HookFailure(error);
-			}
-		};
-		const removeCallerAbortListener = (listener: () => void): void => {
-			try {
-				callerSignal?.removeEventListener("abort", listener);
-			} catch (error) {
-				throw new HookFailure(error);
-			}
-		};
-		const refreshCancellation = (): void => {
-			if (callerIsAborted()) callerCancelled = true;
-		};
-		const cancel = (): void => {
-			callerCancelled = true;
-		};
-		addCallerAbortListener(cancel);
-		refreshCancellation();
 
-		try {
-			for (const candidate of definition.steps) {
-				if (candidate.type !== "agent") {
-					const error = workflowError(
-						"unsupported_step",
-						`${candidate.type} step ${candidate.id} is not supported by the sequential engine`,
-					);
-					const unsupported: UnsupportedStepOutcomeV1 = {
-						type: "unsupported",
-						stepId: candidate.id,
-						stepType: candidate.type,
-						error,
-					};
-					steps.push(unsupported);
-					return finalize({
-						...base(),
-						status: "failed",
-						result: null,
-						error,
-					});
+		const accountLeaf = async (
+			rawOutcome: LeafOutcomeV1,
+		): Promise<LeafOutcomeV1> => {
+			let outcome = rawOutcome;
+			if (outcome.status !== "skipped") {
+				try {
+					aggregate = addUsage(aggregate, outcome.usage);
+				} catch (error) {
+					outcome = providerContractOutcome(outcome.identity, error);
 				}
+			}
+			outcome = freezeObservable(outcome);
+			if (hookFailure === undefined) {
+				try {
+					await emitter.emit({ type: "leaf_terminal", outcome });
+				} catch (error) {
+					if (!(error instanceof HookFailure)) throw error;
+					hookFailure ??= error;
+					abortWorkflow(error);
+				}
+			}
+			return outcome;
+		};
 
+		const settleLeaf = async (
+			leafDefinition: LeafDefinitionV1,
+			identity: LeafIdentityV1,
+		): Promise<LeafOutcomeV1> =>
+			accountLeaf(await settleRawLeaf(leafDefinition, identity));
+
+		for (const candidate of definition.steps) {
+			if (candidate.type === "pipeline") {
+				const error = workflowError(
+					"unsupported_step",
+					`pipeline step ${candidate.id} is not supported by this engine`,
+				);
+				const unsupported: UnsupportedStepOutcomeV1 = {
+					type: "unsupported",
+					stepId: candidate.id,
+					stepType: "pipeline",
+					error,
+				};
+				steps.push(unsupported);
+				if (callerCancelled || hookFailure !== undefined) break;
+				return finalize({
+					...base(),
+					status: "failed",
+					result: null,
+					error,
+				});
+			}
+
+			if (candidate.type === "agent") {
 				const identity = identityFor(runId, candidate.id);
-				let leaf: LeafOutcomeV1 | undefined;
-				refreshCancellation();
-				if (callerCancelled) {
-					leaf = skipped(identity, "cancelled");
+				let leaf: LeafOutcomeV1;
+				if (workflowController.signal.aborted) {
+					leaf = await accountLeaf(skipped(identity, "cancelled"));
+				} else if (
+					counters.reservedCallSlots + 1 >
+					definition.limits.maxCalls
+				) {
+					leaf = await accountLeaf(skipped(identity, "not_admitted"));
 				} else {
 					counters.reservedCallSlots += 1;
-					if (candidate.meta?.phase !== undefined) {
-						await emitter.emit({
-							type: "phase",
-							stepId: candidate.id,
-							phase: candidate.meta.phase,
-						});
-						refreshCancellation();
-						if (callerCancelled) leaf = skipped(identity, "cancelled");
-					}
-					if (leaf === undefined && candidate.meta?.log !== undefined) {
-						await emitter.emit({
-							type: "log",
-							stepId: candidate.id,
-							message: candidate.meta.log,
-						});
-						refreshCancellation();
-						if (callerCancelled) leaf = skipped(identity, "cancelled");
-					}
-				}
-
-				const rendered =
-					leaf === undefined ? renderPrompt(candidate, args, prior) : undefined;
-				if (rendered?.unavailable !== undefined) {
-					leaf = skipped(
-						identity,
-						"unavailable_reference",
-						rendered.unavailable,
-					);
-				} else if (rendered?.tooLarge === true) {
-					leaf = skipped(identity, "prompt_too_large");
-				} else if (leaf === undefined && rendered !== undefined) {
-					let active = true;
-					await emitter.emit({
-						type: "leaf_started",
-						identity,
-						agent: candidate.agent,
-					});
-					refreshCancellation();
-					if (callerCancelled) {
-						leaf = { status: "cancelled", identity, usage: ZERO_USAGE };
-					} else {
-						const controller = new AbortController();
-						const abortForCaller = (): void => {
-							callerCancelled = true;
-							controller.abort();
-						};
-						let onControllerAbort!: () => void;
-						const abortPromise = new Promise<
-							{ kind: "timeout" } | { kind: "cancelled" }
-						>((resolve) => {
-							onControllerAbort = (): void =>
-								resolve({
-									kind: callerCancelled ? "cancelled" : "timeout",
-								});
-							controller.signal.addEventListener("abort", onControllerAbort, {
-								once: true,
-							});
-							if (controller.signal.aborted) onControllerAbort();
-						});
-						let timeout: ReturnType<typeof setTimeout> | undefined;
-						try {
-							addCallerAbortListener(abortForCaller);
-							if (callerIsAborted()) abortForCaller();
-							if (controller.signal.aborted) {
-								leaf = {
-									status: "cancelled",
-									identity,
-									usage: ZERO_USAGE,
-								};
-							} else {
-								timeout = setTimeout(
-									() => controller.abort(new Error("leaf timeout")),
-									candidate.limits.timeoutMs,
-								);
-								counters.actualLeafCalls += 1;
-								const progress = async (
-									update: LeafProgressUpdateV1,
-								): Promise<void> => {
-									if (!active) return;
-									const bounded = progressEvent(update);
-									if (bounded === undefined) return;
-									await emitter.emit({
-										type: "leaf_progress",
-										identity,
-										...bounded,
-									});
-								};
-								const request = Object.freeze({
-									identity,
-									agent: candidate.agent,
-									prompt: rendered.prompt!,
-									output: candidate.output,
-									limits: candidate.limits,
-									signal: controller.signal,
-									progress,
-								});
-								const runnerPromise = Promise.resolve()
-									.then(() => leafRunner(request))
-									.then(
-										(terminal) => ({
-											kind: "terminal" as const,
-											terminal,
-										}),
-										(error: unknown) => ({
-											kind: "runner_rejection" as const,
-											error,
-										}),
-									);
-								const hookPromise = emitter.failurePromise.then((error) => ({
-									kind: "hook" as const,
-									error,
-								}));
-								const settled = await Promise.race([
-									runnerPromise,
-									abortPromise,
-									hookPromise,
-								]);
-								active = false;
-								if (settled.kind === "hook") {
-									controller.abort(settled.error);
-									throw settled.error;
-								}
-								if (settled.kind === "cancelled") {
-									callerCancelled = true;
-									leaf = {
-										status: "cancelled",
-										identity,
-										usage: ZERO_USAGE,
-									};
-								} else if (settled.kind === "timeout") {
-									leaf = {
-										status: "timed_out",
-										identity,
-										usage: ZERO_USAGE,
-									};
-								} else if (settled.kind === "runner_rejection") {
-									leaf = providerContractOutcome(identity, settled.error);
-								} else {
-									await emitter.drain();
-									try {
-										leaf = validateTerminal(
-											settled.terminal,
-											candidate,
-											identity,
-										);
-									} catch (error) {
-										leaf = providerContractOutcome(identity, error);
-									}
-								}
-							}
-						} finally {
-							active = false;
-							if (timeout !== undefined) clearTimeout(timeout);
-							controller.signal.removeEventListener(
-								"abort",
-								onControllerAbort,
-							);
-							removeCallerAbortListener(abortForCaller);
-						}
-					}
-				}
-
-				if (leaf === undefined)
-					throw new Error("leaf outcome was not materialized");
-				if (leaf.status !== "skipped") {
-					try {
-						aggregate = addUsage(aggregate, leaf.usage);
-					} catch (error) {
-						leaf = providerContractOutcome(identity, error);
-					}
+					leaf = await settleLeaf(candidate, identity);
 				}
 				const outcome: AgentStepOutcomeV1 = {
 					type: "agent",
@@ -928,10 +1233,56 @@ async function executeStartedWorkflow(
 				};
 				steps.push(outcome);
 				prior.set(candidate.id, outcome);
-				await emitter.emit({ type: "leaf_terminal", outcome: leaf });
+				if (hookFailure !== undefined) break;
+				continue;
 			}
-		} finally {
-			removeCallerAbortListener(cancel);
+
+			const identities = candidate.tasks.map((task, slot) =>
+				parallelIdentity(runId, candidate.id, task.id, slot),
+			);
+			let slots: LeafOutcomeV1[];
+			if (workflowController.signal.aborted) {
+				slots = [];
+				for (const identity of identities)
+					slots.push(await accountLeaf(skipped(identity, "cancelled")));
+			} else if (
+				counters.reservedCallSlots + candidate.tasks.length >
+				definition.limits.maxCalls
+			) {
+				slots = [];
+				for (const identity of identities)
+					slots.push(await accountLeaf(skipped(identity, "not_admitted")));
+			} else {
+				counters.reservedCallSlots += candidate.tasks.length;
+				try {
+					await emitMeta(
+						emitter,
+						candidate.id,
+						candidate.meta,
+						workflowController.signal,
+					);
+				} catch (error) {
+					if (!(error instanceof HookFailure)) throw error;
+					hookFailure ??= error;
+					abortWorkflow(error);
+				}
+				const rawSlots = await Promise.all(
+					candidate.tasks.map((task, slot) =>
+						settleRawLeaf(task, identities[slot]!),
+					),
+				);
+				slots = [];
+				for (const rawOutcome of rawSlots)
+					slots.push(await accountLeaf(rawOutcome));
+			}
+			const outcome: ParallelStepOutcomeV1 = {
+				type: "parallel",
+				stepId: candidate.id,
+				slots,
+			};
+			steps.push(outcome);
+			prior.set(candidate.id, outcome);
+			if (hookFailure !== undefined) break;
 		}
 
 		if (callerCancelled) {
@@ -942,19 +1293,47 @@ async function executeStartedWorkflow(
 				error: workflowError("cancelled", "workflow cancelled by caller"),
 			});
 		}
-
-		const final = definition.result;
-		if (final.ref !== "step") {
+		if (hookFailure !== undefined) {
 			return finalize({
 				...base(),
 				status: "failed",
 				result: null,
-				error: workflowError(
-					"unsupported_step",
-					"task final references require parallel scheduling",
-				),
+				error: workflowError("hook_error", hookFailure.message),
 			});
 		}
+
+		const final = definition.result;
+		if (final.ref === "task") {
+			const producer = prior.get(final.stepId);
+			const selected =
+				producer?.type === "parallel"
+					? producer.slots.find((leaf) => leaf.identity.taskId === final.taskId)
+					: undefined;
+			if (selected === undefined) {
+				return finalize({
+					...base(),
+					status: "failed",
+					result: null,
+					error: workflowError(
+						"engine_error",
+						"final task result was not materialized",
+					),
+				});
+			}
+			const result = { ref: final, outcome: selected } as const;
+			return selected.status === "succeeded"
+				? finalize({ ...base(), status: "succeeded", result })
+				: finalize({
+						...base(),
+						status: "failed",
+						result,
+						error: workflowError(
+							"final_result_failed",
+							"selected final leaf did not succeed",
+						),
+					});
+		}
+
 		const selected = prior.get(final.stepId);
 		if (selected === undefined) {
 			return finalize({
@@ -967,19 +1346,25 @@ async function executeStartedWorkflow(
 				),
 			});
 		}
-		const result = { ref: final, outcome: selected.leaf } as const;
-		if (selected.leaf.status !== "succeeded") {
+		if (selected.type === "parallel") {
 			return finalize({
 				...base(),
-				status: "failed",
-				result,
-				error: workflowError(
-					"final_result_failed",
-					"selected final leaf did not succeed",
-				),
+				status: "succeeded",
+				result: { ref: final, outcome: selected },
 			});
 		}
-		return finalize({ ...base(), status: "succeeded", result });
+		const result = { ref: final, outcome: selected.leaf } as const;
+		return selected.leaf.status === "succeeded"
+			? finalize({ ...base(), status: "succeeded", result })
+			: finalize({
+					...base(),
+					status: "failed",
+					result,
+					error: workflowError(
+						"final_result_failed",
+						"selected final leaf did not succeed",
+					),
+				});
 	} catch (error) {
 		const code = error instanceof HookFailure ? "hook_error" : "engine_error";
 		return finalize({
@@ -991,6 +1376,12 @@ async function executeStartedWorkflow(
 				boundedMessage(error, "workflow engine failed"),
 			),
 		});
+	} finally {
+		try {
+			callerSignal?.removeEventListener("abort", callerAbort);
+		} catch {
+			// A hostile AbortSignal is reported through the established hook boundary.
+		}
 	}
 }
 
@@ -1008,7 +1399,7 @@ export function executeWorkflow(
 	if (typeof leafRunner !== "function") {
 		throw new TypeError("executeWorkflow requires a LeafRunner function");
 	}
-	return executeStartedWorkflow(
+	return executeScheduledWorkflow(
 		definition,
 		args,
 		leafRunner,
