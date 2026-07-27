@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
 const repository = fileURLToPath(new URL("..", import.meta.url));
+const supportedPiVersions = new Set(["0.81.0", "0.82.1"]);
 
 function run(command, args, options = {}) {
 	const result = spawnSync(command, args, {
@@ -58,6 +59,15 @@ function manifestExtension(fixture, packageName) {
 }
 
 test("packed extension executes through the real published provider in a real Pi session", () => {
+	const piCodingAgentVersion = process.env.PI_CODING_AGENT_VERSION;
+	assert.ok(
+		piCodingAgentVersion,
+		"PI_CODING_AGENT_VERSION is required; use a supported exact Pi version",
+	);
+	assert.ok(
+		supportedPiVersions.has(piCodingAgentVersion),
+		`unsupported PI_CODING_AGENT_VERSION: ${piCodingAgentVersion}`,
+	);
 	const configuredTarball = process.env.PI_SUBAGENTS_TARBALL;
 	assert.ok(
 		configuredTarball,
@@ -104,8 +114,8 @@ test("packed extension executes through the real published provider in a real Pi
 				private: true,
 				type: "module",
 				dependencies: {
-					"@earendil-works/pi-ai": "0.81.0",
-					"@earendil-works/pi-coding-agent": "0.81.0",
+					"@earendil-works/pi-ai": piCodingAgentVersion,
+					"@earendil-works/pi-coding-agent": piCodingAgentVersion,
 					"pi-subagents": `file:./${basename(localProviderTarball)}`,
 					"pi-subagents-workflows": `file:./${basename(localConsumerTarball)}`,
 				},

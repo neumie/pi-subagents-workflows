@@ -37,7 +37,8 @@ change public contracts with migration notes.
 ### Compatibility and limits
 
 - Requires Node.js 24 or newer and Pi
-  `@earendil-works/pi-coding-agent >=0.81.0 <0.82.0`.
+  `@earendil-works/pi-coding-agent >=0.81.0 <0.83.0`; packed real-session
+  compatibility is verified at 0.81.0 and 0.82.1.
 - Ships raw TypeScript package exports that Pi and consumers load through Jiti.
 - Runs only in the foreground. Audit files are inspection records, not replay,
   resume, adoption, daemon, cache, or exactly-once state.

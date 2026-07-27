@@ -27,22 +27,17 @@ jobs:
       - run: npm pack --dry-run
 
   provider-artifact:
+    name: provider-artifact (${{ matrix.os }}, Pi ${{ matrix.pi-version }}, pi-subagents ${{ matrix.provider.version }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            version: 0.36.0
+        os: [ubuntu-latest, windows-latest]
+        pi-version: ["0.81.0", "0.82.1"]
+        provider:
+          - version: "0.36.0"
             sha256: fc6550f62eedf6d19fab2917ffda71d68929b31e3d7be24eb58acfdc44a23cc2
-          - os: ubuntu-latest
-            version: 0.37.0
-            sha256: aefadd1e6fe8375d551b8e29fea5e5a5861c92a08dd1d6a96c7d0c00082e3ae7
-          - os: windows-latest
-            version: 0.36.0
-            sha256: fc6550f62eedf6d19fab2917ffda71d68929b31e3d7be24eb58acfdc44a23cc2
-          - os: windows-latest
-            version: 0.37.0
+          - version: "0.37.0"
             sha256: aefadd1e6fe8375d551b8e29fea5e5a5861c92a08dd1d6a96c7d0c00082e3ae7
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -53,17 +48,18 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci --ignore-scripts
-      - name: Download and verify pi-subagents ${{ matrix.version }}
+      - name: Download and verify pi-subagents ${{ matrix.provider.version }}
         run: node test/download-provider-artifact.mjs
         env:
-          PI_SUBAGENTS_VERSION: ${{ matrix.version }}
+          PI_SUBAGENTS_VERSION: ${{ matrix.provider.version }}
           PI_SUBAGENTS_TARBALL: ${{ runner.temp }}/pi-subagents.tgz
-          PI_SUBAGENTS_TARBALL_SHA256: ${{ matrix.sha256 }}
+          PI_SUBAGENTS_TARBALL_SHA256: ${{ matrix.provider.sha256 }}
       - run: npm run test:provider-artifact
         env:
           PI_SUBAGENTS_TARBALL: ${{ runner.temp }}/pi-subagents.tgz
-          PI_SUBAGENTS_TARBALL_SHA256: ${{ matrix.sha256 }}
+          PI_SUBAGENTS_TARBALL_SHA256: ${{ matrix.provider.sha256 }}
       - run: npm run test:provider-extension-e2e
         env:
+          PI_CODING_AGENT_VERSION: ${{ matrix.pi-version }}
           PI_SUBAGENTS_TARBALL: ${{ runner.temp }}/pi-subagents.tgz
-          PI_SUBAGENTS_TARBALL_SHA256: ${{ matrix.sha256 }}
+          PI_SUBAGENTS_TARBALL_SHA256: ${{ matrix.provider.sha256 }}
