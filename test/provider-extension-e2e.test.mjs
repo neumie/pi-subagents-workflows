@@ -116,10 +116,11 @@ test("packed extension executes through the real published provider in a real Pi
 				"install",
 				"--ignore-scripts",
 				"--no-package-lock",
+				"--prefer-offline",
 				"--no-audit",
 				"--no-fund",
 			],
-			{ cwd: fixture, timeout: 300_000 },
+			{ cwd: fixture, timeout: 600_000 },
 		);
 
 		const runner = join(fixture, "workflow-provider-runner.mjs");
