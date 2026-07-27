@@ -297,10 +297,14 @@ terminal summary without duplicating retained leaf payloads. Strict
 listing/inspection decoders stream-check the journal and expose provenance and
 terminal or incomplete audit summaries only: there are no replay, resume,
 continue, cache,
-adoption, daemon, or saved-definition mutation APIs. Pure Node path checks do
-not claim protection from an active same-account or privileged ancestor
-swap-back attack; native Windows reparse/ACL and hostile namespace behavior
-remain Phase 14 release gates.
+adoption, daemon, or saved-definition mutation APIs. Windows run creation now
+applies and verifies a protected DACL for the current user, `SYSTEM`, and local
+Administrators at the audit, current-session, and new-run directories before
+audit writes. This native adapter requires a trusted launch environment and
+`SystemRoot`; pathname-based checks do not claim handle-pinned protection from
+any active principal able to mutate an ancestor. Native static ACL/reparse
+acceptance and hostile active-namespace behavior remain distinct Phase 14
+release gates.
 
 Commit:
 `1fe39ec feat(extension): add workflow provenance and foreground audit store`

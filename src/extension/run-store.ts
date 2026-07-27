@@ -22,6 +22,7 @@ import {
 	assertSameSnapshots,
 	ensureSafeDirectory,
 	inspectPathWithoutLinks,
+	secureWindowsDirectoryAcl,
 	readBoundedRegularFile,
 	sameIdentity,
 	sameStableStats,
@@ -642,13 +643,16 @@ class ForegroundWorkflowRunStore implements WorkflowRunStore {
 			)
 				throw new Error("resolved workflow source provenance is inconsistent");
 
-			const sessionRoot = join(
+			const auditRoot = join(
 				this.agentDir,
 				"pi-subagents-workflows",
 				"runs",
-				this.sessionKey,
 			);
+			await ensureSafeDirectory(auditRoot);
+			await secureWindowsDirectoryAcl(auditRoot);
+			const sessionRoot = join(auditRoot, this.sessionKey);
 			await ensureSafeDirectory(sessionRoot);
+			await secureWindowsDirectoryAcl(sessionRoot);
 			const directory = join(sessionRoot, event.runId);
 			const absent = await inspectPathWithoutLinks(directory);
 			if (absent.exists)
@@ -657,6 +661,7 @@ class ForegroundWorkflowRunStore implements WorkflowRunStore {
 			const created = await inspectPathWithoutLinks(directory);
 			if (!created.exists || !created.components.at(-1)?.stats.isDirectory())
 				throw new Error("failed to create an exclusive safe run directory");
+			await secureWindowsDirectoryAcl(directory);
 
 			this.directoryValue = directory;
 			this.directorySnapshot = created.components;
