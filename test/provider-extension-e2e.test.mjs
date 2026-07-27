@@ -41,9 +41,12 @@ function runNpm(args, options = {}) {
 
 function manifestExtension(fixture, packageName) {
 	const packageRoot = realpathSync(join(fixture, "node_modules", packageName));
-	const manifest = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8"));
+	const manifest = JSON.parse(
+		readFileSync(join(packageRoot, "package.json"), "utf8"),
+	);
 	assert.ok(
-		Array.isArray(manifest.pi?.extensions) && manifest.pi.extensions.length === 1,
+		Array.isArray(manifest.pi?.extensions) &&
+			manifest.pi.extensions.length === 1,
 		`${packageName} must publish exactly one Pi extension for this E2E`,
 	);
 	const declared = manifest.pi.extensions[0];

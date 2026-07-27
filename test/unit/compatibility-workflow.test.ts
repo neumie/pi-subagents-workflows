@@ -3,10 +3,10 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 function source(path: string): string {
-	return readFileSync(new URL(`../../${path}`, import.meta.url), "utf8").replace(
-		/\r\n?/g,
-		"\n",
-	);
+	return readFileSync(
+		new URL(`../../${path}`, import.meta.url),
+		"utf8",
+	).replace(/\r\n?/g, "\n");
 }
 
 const ci = source(".github/workflows/ci.yml");
@@ -33,10 +33,7 @@ test("CI covers every supported Pi host and provider on Ubuntu and Windows", () 
 	assert.ok(ci.includes(operatingSystemMatrix));
 	assert.ok(ci.includes(hostMatrix));
 	assertProviderMatrix(ci);
-	assert.match(
-		ci,
-		/PI_CODING_AGENT_VERSION: \$\{\{ matrix\.pi-version \}\}/u,
-	);
+	assert.match(ci, /PI_CODING_AGENT_VERSION: \$\{\{ matrix\.pi-version \}\}/u);
 });
 
 test("release provider gates preserve the complete compatibility matrix", () => {
@@ -50,15 +47,9 @@ test("release provider gates preserve the complete compatibility matrix", () => 
 });
 
 test("packed real-session fixtures require an explicit supported Pi host", () => {
-	assert.match(
-		providerE2e,
-		/process\.env\.PI_CODING_AGENT_VERSION/u,
-	);
+	assert.match(providerE2e, /process\.env\.PI_CODING_AGENT_VERSION/u);
 	assert.match(providerE2e, /new Set\(\["0\.81\.0", "0\.82\.1"\]\)/u);
-	assert.match(
-		providerE2e,
-		/"@earendil-works\/pi-ai": piCodingAgentVersion/u,
-	);
+	assert.match(providerE2e, /"@earendil-works\/pi-ai": piCodingAgentVersion/u);
 	assert.match(
 		providerE2e,
 		/"@earendil-works\/pi-coding-agent": piCodingAgentVersion/u,
