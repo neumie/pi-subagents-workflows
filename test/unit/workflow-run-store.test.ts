@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
 	chmod,
@@ -171,6 +172,110 @@ async function json(path: string): Promise<unknown> {
 	return JSON.parse(await readFile(path, "utf8")) as unknown;
 }
 
+const WINDOWS_EVERYONE_SID = "S-1-1-0";
+
+interface WindowsAclRule {
+	readonly sid: string;
+	readonly accessType: string;
+	readonly inherited: boolean;
+	readonly rights: string;
+}
+
+interface WindowsAclSnapshot {
+	readonly protected: boolean;
+	readonly currentSid: string;
+	readonly rules: readonly WindowsAclRule[];
+}
+
+function runWindowsPowerShell(script: string, path: string): string {
+	const result = spawnSync(
+		"powershell.exe",
+		[
+			"-NoLogo",
+			"-NoProfile",
+			"-NonInteractive",
+			"-ExecutionPolicy",
+			"Bypass",
+			"-Command",
+			script,
+		],
+		{
+			encoding: "utf8",
+			env: { ...process.env, PI_WORKFLOWS_ACL_PATH: path },
+		},
+	);
+	assert.equal(
+		result.status,
+		0,
+		result.error?.stack || result.stderr || result.stdout,
+	);
+	return result.stdout.replace(/^\uFEFF/u, "").trim();
+}
+
+function installBroadWindowsAcl(path: string): void {
+	runWindowsPowerShell(
+		String.raw`
+$ErrorActionPreference = 'Stop'
+$acl = Get-Acl -LiteralPath $env:PI_WORKFLOWS_ACL_PATH
+$acl.SetAccessRuleProtection($true, $false)
+foreach ($rule in @($acl.Access)) {
+  [void]$acl.RemoveAccessRuleSpecific($rule)
+}
+$currentSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
+$everyoneSid = [System.Security.Principal.SecurityIdentifier]::new('S-1-1-0')
+$inheritance = [System.Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [System.Security.AccessControl.InheritanceFlags]::ObjectInherit
+$propagation = [System.Security.AccessControl.PropagationFlags]::None
+$allow = [System.Security.AccessControl.AccessControlType]::Allow
+$fullControl = [System.Security.AccessControl.FileSystemRights]::FullControl
+[void]$acl.AddAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new($currentSid, $fullControl, $inheritance, $propagation, $allow))
+[void]$acl.AddAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new($everyoneSid, $fullControl, $inheritance, $propagation, $allow))
+Set-Acl -LiteralPath $env:PI_WORKFLOWS_ACL_PATH -AclObject $acl
+`,
+		path,
+	);
+}
+
+function readWindowsAcl(path: string): WindowsAclSnapshot {
+	const output = runWindowsPowerShell(
+		String.raw`
+$ErrorActionPreference = 'Stop'
+$acl = Get-Acl -LiteralPath $env:PI_WORKFLOWS_ACL_PATH
+$currentSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+$rules = @($acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]) | ForEach-Object {
+  [pscustomobject]@{
+    sid = $_.IdentityReference.Value
+    accessType = $_.AccessControlType.ToString()
+    inherited = $_.IsInherited
+    rights = $_.FileSystemRights.ToString()
+  }
+})
+[pscustomobject]@{
+  protected = $acl.AreAccessRulesProtected
+  currentSid = $currentSid
+  rules = $rules
+} | ConvertTo-Json -Compress -Depth 4
+`,
+		path,
+	);
+	const parsed = JSON.parse(output) as Partial<WindowsAclSnapshot>;
+	assert.equal(typeof parsed.protected, "boolean");
+	assert.equal(typeof parsed.currentSid, "string");
+	assert.ok(Array.isArray(parsed.rules));
+	for (const rule of parsed.rules) {
+		assert.equal(typeof rule.sid, "string");
+		assert.equal(typeof rule.accessType, "string");
+		assert.equal(typeof rule.inherited, "boolean");
+		assert.equal(typeof rule.rights, "string");
+	}
+	return parsed as WindowsAclSnapshot;
+}
+
+function hasAllowedSid(acl: WindowsAclSnapshot, sid: string): boolean {
+	return acl.rules.some(
+		(rule) => rule.sid === sid && rule.accessType === "Allow",
+	);
+}
+
 test("session identity is a stable directory-safe hash and never derives from cwd", async (t) => {
 	const paths = await fixture();
 	t.after(() => rm(paths.root, { recursive: true, force: true }));
@@ -252,6 +357,61 @@ test("beginRun writes exact restrictive layout, manifest provenance, snapshot, a
 			assert.equal((await lstat(join(directory, name))).mode & 0o777, 0o600);
 	}
 	await store.close();
+});
+
+test("native Windows run storage excludes broad inherited ACL access", async (t) => {
+	if (process.platform !== "win32") {
+		t.skip("native Windows ACL acceptance runs only on Windows");
+		return;
+	}
+	const paths = await fixture();
+	t.after(() => rm(paths.root, { recursive: true, force: true }));
+	installBroadWindowsAcl(paths.agentDir);
+	const parentAcl = readWindowsAcl(paths.agentDir);
+	assert.equal(parentAcl.protected, true);
+	assert.equal(hasAllowedSid(parentAcl, WINDOWS_EVERYONE_SID), true);
+
+	const store = createWorkflowRunStore({
+		agentDir: paths.agentDir,
+		sessionId: "native-windows-acl-session",
+	});
+	try {
+		await begin(store, paths);
+		const auditRoot = join(
+			paths.agentDir,
+			"pi-subagents-workflows",
+			"runs",
+		);
+		const auditRootAcl = readWindowsAcl(auditRoot);
+		const runAcl = readWindowsAcl(store.runDirectory!);
+		assert.equal(
+			auditRootAcl.protected,
+			true,
+			"the audit root must stop inheriting an untrusted parent DACL",
+		);
+		assert.equal(
+			hasAllowedSid(auditRootAcl, WINDOWS_EVERYONE_SID),
+			false,
+			"the audit root must not grant Everyone access",
+		);
+		assert.equal(
+			hasAllowedSid(runAcl, WINDOWS_EVERYONE_SID),
+			false,
+			"run directories must not inherit Everyone access",
+		);
+		assert.equal(
+			hasAllowedSid(auditRootAcl, auditRootAcl.currentSid),
+			true,
+			"the current Windows user must retain audit-root access",
+		);
+		assert.equal(
+			hasAllowedSid(runAcl, runAcl.currentSid),
+			true,
+			"the current Windows user must retain run access",
+		);
+	} finally {
+		await store.close();
+	}
 });
 
 test("file sources include canonical provenance and preserve the exact source snapshot", async (t) => {
