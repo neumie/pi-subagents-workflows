@@ -18,7 +18,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/neumie/pi-subagents-workflows.git"
+    "url": "git+https://github.com/neumie/pi-subagents-workflows.git"
   },
   "homepage": "https://github.com/neumie/pi-subagents-workflows",
   "bugs": {
@@ -28,6 +28,7 @@
     "src",
     "README.md",
     "PLAN.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "exports": {

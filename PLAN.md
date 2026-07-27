@@ -303,8 +303,8 @@ Administrators at the audit, current-session, and new-run directories before
 audit writes. This native adapter requires a trusted launch environment and
 `SystemRoot`; pathname-based checks do not claim handle-pinned protection from
 any active principal able to mutate an ancestor. Native static ACL/reparse
-acceptance and hostile active-namespace behavior remain distinct Phase 14
-release gates.
+acceptance is green; hostile active-namespace behavior remains an explicit
+exclusion rather than an incomplete Phase 14 gate.
 
 Commit:
 `1fe39ec feat(extension): add workflow provenance and foreground audit store`
@@ -435,7 +435,7 @@ For IR v1 and the foreground release, this project will not:
   usage accounting;
 - add nested workflows, automatic cache reuse, arbitrary package resource
   discovery, parity retry policies, or expanded worktree policy to IR v1; or
-- publish npm packages before the release gates pass. The current consumer
-  includes the parser, foreground engine, provider adapter, and unregistered
-  internal source/audit-store slice; the Pi tool/command and release gates are
-  still incomplete.
+- publish npm packages before the release gates pass. The complete foreground
+  parser, engine, provider adapter, source/audit layer, Pi tool/command, and
+  release matrix are now green; publication remains a separate explicit
+  operation governed by `RELEASING.md`.
