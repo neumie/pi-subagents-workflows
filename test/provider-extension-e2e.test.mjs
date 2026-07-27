@@ -119,7 +119,7 @@ test("packed extension executes through the real published provider in a real Pi
 				"--no-audit",
 				"--no-fund",
 			],
-			{ cwd: fixture },
+			{ cwd: fixture, timeout: 300_000 },
 		);
 
 		const runner = join(fixture, "workflow-provider-runner.mjs");
