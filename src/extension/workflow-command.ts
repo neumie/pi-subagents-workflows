@@ -46,7 +46,7 @@ function scanPrefix(input: string): ScannedPrefix {
 					const escaped = input[index + 1];
 					if (escaped === undefined)
 						throw new Error("workflow command has a trailing escape");
-					if (escaped === '"' || escaped === "\\") {
+					if (escaped === '"') {
 						word += escaped;
 						index += 2;
 					} else {
@@ -69,7 +69,11 @@ function scanPrefix(input: string): ScannedPrefix {
 				const escaped = input[index + 1];
 				if (escaped === undefined)
 					throw new Error("workflow command has a trailing escape");
-				if (escaped === "\\" || escaped === "'" || escaped === '"' || /\s/u.test(escaped)) {
+				if (
+					escaped === "'" ||
+					escaped === '"' ||
+					/\s/u.test(escaped)
+				) {
 					word += escaped;
 					index += 2;
 				} else {
