@@ -541,7 +541,11 @@ function parseTerminal(attempt: Attempt, input: unknown): LeafRunnerTerminalV1 {
 		"duplicate_node",
 		"unavailable_context",
 	]);
-	if (value.status === "failed" || value.status === "acceptance_failed") {
+	if (
+		value.status === "failed" ||
+		value.status === "acceptance_failed" ||
+		value.status === "structured_output_failed"
+	) {
 		return {
 			status: "failed",
 			error: providerError(value.status, value.error),

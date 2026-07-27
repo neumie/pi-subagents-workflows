@@ -244,6 +244,20 @@ function validateUsage(
 			);
 		}
 	}
+	let tokenSubtotal = 0;
+	for (const field of [
+		"input",
+		"output",
+		"cacheRead",
+		"cacheWrite",
+	] as const) {
+		const item = value[field] as number;
+		if (item > maximumUsageValue - tokenSubtotal)
+			throw new ProviderContractFailure(
+				"usage token subtotal exceeds the effective per-leaf usage cap",
+			);
+		tokenSubtotal += item;
+	}
 	if ((value.turns as number) > limits.maxTurns) {
 		throw new ProviderContractFailure(
 			"reported turns exceed the declared leaf limit",

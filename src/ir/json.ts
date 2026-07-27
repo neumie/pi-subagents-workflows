@@ -40,7 +40,7 @@ export function utf8Bytes(value: string): number {
 	return encoder.encode(value).byteLength;
 }
 
-export function assertSafeString(value: string, path: string): void {
+function assertSafeString(value: string, path: string): void {
 	if (hasUnpairedSurrogate(value))
 		reject(path, "string contains an unpaired surrogate");
 }
@@ -414,12 +414,28 @@ function appendCanonical(
 	return sink.append("}");
 }
 
+export interface CanonicalJsonPrefixV1 {
+	readonly text: string;
+	readonly complete: boolean;
+}
+
+export function canonicalJsonPrefix(
+	value: JsonValue,
+	maximumBytes: number,
+): CanonicalJsonPrefixV1 {
+	if (!Number.isSafeInteger(maximumBytes) || maximumBytes < 0)
+		throw new TypeError("canonical JSON prefix limit must be a nonnegative safe integer");
+	const sink = new BoundedCanonicalSink(maximumBytes);
+	const complete = appendCanonical(value, sink);
+	return Object.freeze({ text: sink.finish(), complete });
+}
+
 export function boundedCanonicalJson(
 	value: JsonValue,
 	maximumBytes: number,
 ): string | undefined {
-	const sink = new BoundedCanonicalSink(maximumBytes);
-	return appendCanonical(value, sink) ? sink.finish() : undefined;
+	const result = canonicalJsonPrefix(value, maximumBytes);
+	return result.complete ? result.text : undefined;
 }
 
 export function canonicalJson(value: JsonValue): string {

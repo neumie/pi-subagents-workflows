@@ -252,27 +252,30 @@ final group semantics, cancellation and hook-failure alignment, and timeout
 permit cleanup. Pipelines use the same semaphore, limits, result-size formula,
 and progress bounds as every other leaf kind. Terminal validation caps every
 reported usage field at
-`floor(Number.MAX_SAFE_INTEGER / definition.limits.maxCalls)` before a pipeline
-lane can advance, ensuring that at most `maxCalls` accepted usages cannot
-overflow later source-order aggregation.
+`floor(Number.MAX_SAFE_INTEGER / definition.limits.maxCalls)` and requires the
+four token categories to fit together within that same cap before a pipeline
+lane can advance. This ensures that at most `maxCalls` accepted usages and the
+derived Pi token subtotal cannot overflow later source-order aggregation.
 
 Commit: `feat(engine): add item-local pipeline stages`
 
-### 12. Public `pi-subagents` LeafRunner adapter: red-green (consumer complete)
+### 12. Public `pi-subagents` LeafRunner adapter: red-green (complete)
 
-Provider-free fake-bus tests cover v2 identity, constant-listener concurrency,
-duplicates, literal text and structured values, thinking/model, detailed usage,
-hostile payloads, cancellation races, reload/disposal, bounded progress, and
-typed failures. A separate reviewed-artifact smoke gate proves clean external
-tarball installation, public `pi-subagents/delegation` loading, protocol/export
-compatibility, and hard-zero request projection; it does not stand in for the
-real cross-extension E2E required by Phase 14. The runtime rejects unsupported
-providers rather than downgrading. The consumer intentionally has no
-`pi-subagents` manifest entry until the reviewed v2 provider seam is published;
-this upstream release is the remaining Phase 12 release block.
+Fake-bus tests cover v2 identity, constant-listener concurrency, duplicates,
+literal text and structured values, thinking/model, detailed usage, hostile
+payloads, cancellation races, reload/disposal, bounded progress, and typed
+failures. A separate reviewed-artifact smoke gate proves clean external tarball
+installation, public `pi-subagents/delegation` loading, protocol/export
+compatibility, hard-zero request projection, and the published
+`structured_output_failed` terminal; it does not stand in for the real
+cross-extension E2E required by Phase 14. The runtime rejects unsupported
+providers rather than downgrading.
 
-Planned commit (not created by the Phase 12 writer):
-`feat(adapter): run workflow leaves through delegation v2`
+Delegation v2 shipped in `pi-subagents@0.36.0` and remains supported in 0.37.0.
+The consumer now pins the normal runtime dependency range
+`>=0.36.0 <0.38.0`; CI verifies reviewed registry tarballs for both endpoints.
+
+Commit: `763b6b7 feat(adapter): run workflow leaves through delegation v2`
 
 ### 13. Foreground Pi integration: staged red-green
 
@@ -299,25 +302,37 @@ not claim protection from an active same-account or privileged ancestor
 swap-back attack; native Windows reparse/ACL and hostile namespace behavior
 remain Phase 14 release gates.
 
-Planned commit (not created by the Phase 13a writer):
-`feat(extension): add strict workflow provenance and foreground audit store`
+Commit:
+`1fe39ec feat(extension): add workflow provenance and foreground audit store`
 
-#### 13b. Shared foreground run service and rendering: red-green (not started)
+#### 13b. Shared foreground run service and rendering: red-green (complete)
 
-First prove journal-before-dispatch behavior through the service, exact
-in-memory active-run ownership and cancellation, hook/store failure handling,
-bounded rendering, literal/structured result preservation, nested usage, and
-cleanup. Then implement the awaited foreground service, renderers, and Pi usage
-adapter. Disk remains audit/inspection state, never ownership or recovery
-state.
+Focused tests prove awaited journal-before-dispatch ordering, exact in-memory
+run-ID ownership and cancellation, concurrent foreground calls, bounded
+shutdown, hook/store/adapter failure cleanup, terminal-before-result
+publication, bounded progress and terminal rendering, literal/structured result
+preservation, and exact nested Pi usage without fabricated category costs. The
+service creates one lazy shared public provider adapter per invocation cwd,
+caps cwd-scoped services, disposes each once, and treats disk only as
+audit/inspection state.
 
-#### 13c. Pi tool and command registration: red-green (not started)
+#### 13c. Pi registration: red-green (complete)
 
-First test packed-package extension loading and both invocation paths, hook
-updates, source capability differences, run/session identity, and targeted
-cancellation. Then replace the no-op extension scaffold with the bounded
-foreground `pi_workflow` tool and `/pi-workflow` command. Do not add any
-resume/detach command or model path capability.
+A fake-host test covers exact `pi_workflow` and `/pi-workflow` registration,
+tool call ID and abort propagation, bounded/coalesced updates and errors,
+inline/saved versus command-only path capability, same-session cwd changes,
+branch pointers, targeted cancellation, and idempotent session-shutdown
+disposal. The strict command parser exposes only `run`, `list`, `status`, and
+`cancel`; there is no save, resume, detach, background, or model path
+capability.
+
+A clean-install E2E now packs the consumer, installs a reviewed provider
+tarball, discovers both extension entrypoints from their published Pi
+manifests, creates a real Pi `AgentSession`, and executes one workflow through
+the real `pi-subagents` extension and a test-owned faux-provider child. It
+asserts exact model/tool result delivery, compact details, branch pointers,
+terminal audit state, and session shutdown. The gate passes for both supported
+provider releases, 0.36.0 and 0.37.0.
 
 Planned commit:
 `feat(extension): expose foreground workflow tool and command`
@@ -326,8 +341,13 @@ Planned commit:
 
 Add hostile metadata, traversal/symlink, maximum-size/limit,
 deterministic-event, tarball-install, provider minimum/current, and real
-extension tests. Document
-foreground, active-context, current-authority, and non-durable limits.
+extension tests. Document foreground, active-context, current-authority, and
+non-durable limits.
+
+The provider minimum/current artifact and real-extension jobs, local Node 24
+unit/type/package gates, and independent correctness/security reviews are
+green. Native Windows filesystem/ACL/reparse validation and hosted Node 24
+Ubuntu/Windows CI execution remain before Phase 14 can be called complete.
 
 Commits:
 

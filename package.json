@@ -38,6 +38,7 @@
   "scripts": {
     "test:unit": "node --experimental-strip-types --test test/unit/*.test.ts",
     "test:provider-artifact": "node --test test/provider-artifact.test.mjs",
+    "test:provider-extension-e2e": "node --test test/provider-extension-e2e.test.mjs",
     "typecheck": "tsc --noEmit",
     "test": "npm run test:unit && npm run typecheck",
     "pack:check": "npm pack --dry-run --ignore-scripts"
@@ -48,10 +49,12 @@
     ]
   },
   "dependencies": {
-    "jiti": "2.7.0"
+    "jiti": "2.7.0",
+    "pi-subagents": ">=0.36.0 <0.38.0",
+    "typebox": "1.1.38"
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*"
+    "@earendil-works/pi-coding-agent": ">=0.81.0 <0.82.0"
   },
   "peerDependenciesMeta": {
     "@earendil-works/pi-coding-agent": {

@@ -833,6 +833,69 @@ test("caller cancellation aborts active work and materializes remaining agents a
 	});
 });
 
+test("provider token subtotal stays within the effective aggregate-safe cap", async () => {
+	const maximum = Number.MAX_SAFE_INTEGER;
+	const accepted = await executeWorkflow(
+		parseWorkflowDefinition(
+			definition({ limits: { concurrency: 1, maxCalls: 1, maxItems: 1 } }),
+		),
+		{ topic: "x" },
+		async () => ({
+			status: "completed",
+			result: { mode: "text", text: "ok" },
+			usage: {
+				...usage,
+				input: maximum,
+				output: 0,
+				cacheRead: 0,
+				cacheWrite: 0,
+			},
+		}),
+		{},
+	);
+	assert.equal(accepted.status, "succeeded");
+	assert.equal(accepted.usage.input, maximum);
+
+	const rejected = await executeWorkflow(
+		parseWorkflowDefinition(
+			definition({ limits: { concurrency: 1, maxCalls: 1, maxItems: 1 } }),
+		),
+		{ topic: "x" },
+		async () => ({
+			status: "completed",
+			result: { mode: "text", text: "unsafe" },
+			usage: {
+				...usage,
+				input: maximum,
+				output: 1,
+				cacheRead: 0,
+				cacheWrite: 0,
+			},
+		}),
+		{},
+	);
+	const leaf = leafAt(rejected, 0);
+	assert.equal(leaf.status, "failed");
+	assert.equal(
+		leaf.status === "failed" ? leaf.error.code : undefined,
+		"provider_contract_violation",
+	);
+	assert.match(
+		leaf.status === "failed" ? leaf.error.message : "",
+		/token subtotal.*cap/i,
+	);
+	assert.deepEqual(rejected.usage, {
+		input: 0,
+		output: 0,
+		cacheRead: 0,
+		cacheWrite: 0,
+		cost: 0,
+		turns: 0,
+		toolCalls: 0,
+		durationMs: 0,
+	});
+});
+
 test("enforces invocation, prompt, and terminal output bounds without dispatch/accounting leaks", async () => {
 	let calls = 0;
 	const boundedRunner: LeafRunner = async () => {

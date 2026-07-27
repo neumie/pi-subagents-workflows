@@ -106,13 +106,19 @@ test("package exposes only stable barrels and one scaffold Pi extension", () => 
 	}
 });
 
-test("host imports are optional wildcard peers with exact development pins", () => {
+test("host peers and the published provider range stay explicit", () => {
 	const manifest = loadManifest();
 	const hostPackage = "@earendil-works/pi-coding-agent";
 
-	assert.deepEqual(manifest.dependencies, { jiti: "2.7.0" });
+	assert.deepEqual(manifest.dependencies, {
+		jiti: "2.7.0",
+		"pi-subagents": ">=0.36.0 <0.38.0",
+		typebox: "1.1.38",
+	});
 	assert.deepEqual(manifest.optionalDependencies, undefined);
-	assert.deepEqual(manifest.peerDependencies, { [hostPackage]: "*" });
+	assert.deepEqual(manifest.peerDependencies, {
+		[hostPackage]: ">=0.81.0 <0.82.0",
+	});
 	assert.deepEqual(manifest.peerDependenciesMeta, {
 		[hostPackage]: { optional: true },
 	});
@@ -132,7 +138,6 @@ test("host imports are optional wildcard peers with exact development pins", () 
 	];
 	for (const dependencies of dependencySections) {
 		for (const [name, specifier] of Object.entries(dependencies ?? {})) {
-			assert.notEqual(name, "pi-subagents");
 			assert.doesNotMatch(
 				specifier,
 				/^(?:file|link|git|git\+|github:)|(?:^|[\\/])\.\.?(?:[\\/]|$)|^[~/]/i,
@@ -144,6 +149,8 @@ test("host imports are optional wildcard peers with exact development pins", () 
 	assert.deepEqual(manifest.scripts, {
 		"test:unit": "node --experimental-strip-types --test test/unit/*.test.ts",
 		"test:provider-artifact": "node --test test/provider-artifact.test.mjs",
+		"test:provider-extension-e2e":
+			"node --test test/provider-extension-e2e.test.mjs",
 		typecheck: "tsc --noEmit",
 		test: "npm run test:unit && npm run typecheck",
 		"pack:check": "npm pack --dry-run --ignore-scripts",
@@ -184,10 +191,14 @@ test("dry-run tarball contains only declared source and documentation", () => {
 		"src/engine/index.ts",
 		"src/engine/types.ts",
 		"src/extension/audit-codec.ts",
+		"src/extension/foreground-run.ts",
 		"src/extension/index.ts",
+		"src/extension/pi-usage.ts",
+		"src/extension/render.ts",
 		"src/extension/run-store.ts",
 		"src/extension/safe-filesystem.ts",
 		"src/extension/strict-json.ts",
+		"src/extension/workflow-command.ts",
 		"src/extension/workflow-source.ts",
 		"src/index.ts",
 		"src/ir/index.ts",
@@ -225,6 +236,32 @@ test("packed package imports every public entry through Jiti from a clean instal
 			temporaryDirectory,
 			reports[0]?.filename ?? "missing.tgz",
 		);
+		const providerPacked = spawnSync(
+			npm,
+			[
+				"pack",
+				"--json",
+				"--ignore-scripts",
+				"--pack-destination",
+				temporaryDirectory,
+			],
+			{
+				cwd: new URL("../../node_modules/pi-subagents/", import.meta.url),
+				encoding: "utf8",
+			},
+		);
+		assert.equal(
+			providerPacked.status,
+			0,
+			providerPacked.stderr || providerPacked.stdout,
+		);
+		const providerReports = JSON.parse(providerPacked.stdout) as Array<{
+			filename: string;
+		}>;
+		const providerTarball = join(
+			temporaryDirectory,
+			providerReports[0]?.filename ?? "missing-provider.tgz",
+		);
 
 		writeFileSync(
 			join(temporaryDirectory, "package.json"),
@@ -233,6 +270,7 @@ test("packed package imports every public entry through Jiti from a clean instal
 				type: "module",
 				dependencies: {
 					jiti: "2.7.0",
+					"pi-subagents": pathToFileURL(providerTarball).href,
 					"pi-subagents-workflows": pathToFileURL(tarball).href,
 				},
 			}),
