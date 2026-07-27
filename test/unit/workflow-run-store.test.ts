@@ -173,17 +173,22 @@ async function json(path: string): Promise<unknown> {
 }
 
 const WINDOWS_EVERYONE_SID = "S-1-1-0";
+const WINDOWS_SYSTEM_SID = "S-1-5-18";
+const WINDOWS_ADMINISTRATORS_SID = "S-1-5-32-544";
 
 interface WindowsAclRule {
 	readonly sid: string;
 	readonly accessType: string;
 	readonly inherited: boolean;
 	readonly rights: string;
+	readonly inheritanceFlags: number;
+	readonly propagationFlags: number;
 }
 
 interface WindowsAclSnapshot {
 	readonly protected: boolean;
 	readonly currentSid: string;
+	readonly ownerSid: string;
 	readonly rules: readonly WindowsAclRule[];
 }
 
@@ -251,17 +256,21 @@ function readWindowsAcl(path: string): WindowsAclSnapshot {
 $ErrorActionPreference = 'Stop'
 $acl = [System.IO.Directory]::GetAccessControl($env:PI_WORKFLOWS_ACL_PATH)
 $currentSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+$ownerSid = $acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value
 $rules = @($acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]) | ForEach-Object {
   [pscustomobject]@{
     sid = $_.IdentityReference.Value
     accessType = $_.AccessControlType.ToString()
     inherited = $_.IsInherited
     rights = $_.FileSystemRights.ToString()
+    inheritanceFlags = [int]$_.InheritanceFlags
+    propagationFlags = [int]$_.PropagationFlags
   }
 })
 [pscustomobject]@{
   protected = $acl.AreAccessRulesProtected
   currentSid = $currentSid
+  ownerSid = $ownerSid
   rules = $rules
 } | ConvertTo-Json -Compress -Depth 4
 `,
@@ -270,12 +279,15 @@ $rules = @($acl.GetAccessRules($true, $true, [System.Security.Principal.Security
 	const parsed = JSON.parse(output) as Partial<WindowsAclSnapshot>;
 	assert.equal(typeof parsed.protected, "boolean");
 	assert.equal(typeof parsed.currentSid, "string");
+	assert.equal(typeof parsed.ownerSid, "string");
 	assert.ok(Array.isArray(parsed.rules));
 	for (const rule of parsed.rules) {
 		assert.equal(typeof rule.sid, "string");
 		assert.equal(typeof rule.accessType, "string");
 		assert.equal(typeof rule.inherited, "boolean");
 		assert.equal(typeof rule.rights, "string");
+		assert.equal(typeof rule.inheritanceFlags, "number");
+		assert.equal(typeof rule.propagationFlags, "number");
 	}
 	return parsed as WindowsAclSnapshot;
 }
@@ -284,6 +296,34 @@ function hasAllowedSid(acl: WindowsAclSnapshot, sid: string): boolean {
 	return acl.rules.some(
 		(rule) => rule.sid === sid && rule.accessType === "Allow",
 	);
+}
+
+function assertRestrictedWindowsAcl(
+	acl: WindowsAclSnapshot,
+	label: string,
+): void {
+	assert.equal(acl.protected, true, `${label} must protect DACL inheritance`);
+	assert.equal(acl.ownerSid, acl.currentSid, `${label} must be owned by the user`);
+	assert.deepEqual(
+		acl.rules.map(({ sid }) => sid).sort(),
+		[acl.currentSid, WINDOWS_SYSTEM_SID, WINDOWS_ADMINISTRATORS_SID].sort(),
+		`${label} must contain exactly the three trusted principals`,
+	);
+	for (const rule of acl.rules) {
+		assert.equal(rule.accessType, "Allow", `${label} rules must allow`);
+		assert.equal(rule.inherited, false, `${label} rules must be explicit`);
+		assert.equal(rule.rights, "FullControl", `${label} rules must be exact`);
+		assert.equal(
+			rule.inheritanceFlags,
+			3,
+			`${label} rules must inherit to files and directories`,
+		);
+		assert.equal(
+			rule.propagationFlags,
+			0,
+			`${label} rules must use default propagation`,
+		);
+	}
 }
 
 test("session identity is a stable directory-safe hash and never derives from cwd", async (t) => {
@@ -401,6 +441,9 @@ test("native Windows run storage excludes broad inherited ACL access", async (t)
 		const auditRootAcl = readWindowsAcl(auditRoot);
 		const sessionAcl = readWindowsAcl(sessionRoot);
 		const runAcl = readWindowsAcl(store.runDirectory!);
+		assertRestrictedWindowsAcl(auditRootAcl, "audit root");
+		assertRestrictedWindowsAcl(sessionAcl, "session root");
+		assertRestrictedWindowsAcl(runAcl, "run directory");
 		assert.equal(
 			auditRootAcl.protected,
 			true,
@@ -810,10 +853,6 @@ test("wrong-run finish, writes after close, and duplicate run directories fail c
 });
 
 test("replacing a journal with a symlink is rejected rather than followed", async (t) => {
-	if (process.platform === "win32")
-		t.skip(
-			"ordinary file symlink creation requires privileges on some Windows workers",
-		);
 	const paths = await fixture();
 	t.after(() => rm(paths.root, { recursive: true, force: true }));
 	const store = createWorkflowRunStore({
@@ -824,7 +863,14 @@ test("replacing a journal with a symlink is rejected rather than followed", asyn
 	const journal = join(store.runDirectory!, "journal.jsonl");
 	const moved = join(store.runDirectory!, "journal.original");
 	await rename(journal, moved);
-	await symlink(moved, journal);
+	try {
+		await symlink(moved, journal);
+	} catch (error) {
+		throw new Error(
+			"native file-symlink capability preflight failed before journal replacement",
+			{ cause: error },
+		);
+	}
 	await assert.rejects(
 		store.appendEvent(phase(2)),
 		/symbolic link|replaced|identity/i,

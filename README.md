@@ -12,11 +12,13 @@ foreground service, bounded renderer, `pi_workflow` model tool, and
 `/pi-workflow` command are implemented.** Focused and provider-free unit gates
 are green, and the adapter is artifact-tested against the supported published
 `pi-subagents` 0.36.0 and 0.37.0 releases. Packed real-Pi sessions also pass
-through the actual provider extension for both releases. Local Node 24 unit,
-package, provider-matrix, correctness-review, and security-review gates are
-green. The package is not published yet: native Ubuntu/Windows CI and
-filesystem/ACL/reparse gates still have to pass. See [PLAN.md](PLAN.md) for the
-TDD and release contract.
+through the actual provider extension for both releases. Local and hosted Node
+24 Ubuntu/Windows unit, type, package, provider-matrix, correctness-review, and
+security-review gates are green. Native Windows acceptance verifies exact audit
+DACLs and real file-link/junction rejection under the documented static threat
+model. The package remains unpublished pending an explicit release decision;
+active ancestor mutation is excluded rather than claimed solved. See
+[PLAN.md](PLAN.md) for the TDD and release contract.
 
 ## Current branches and identity
 
@@ -302,8 +304,8 @@ values, unsupported policies, and malformed schemas or limits fail parsing.
 10. Add the shared foreground run service, renderer, Pi tool, and command.
     **Implemented, including packed real-extension acceptance.**
 11. Pass packed-package, security, provider-matrix, Node 24 Ubuntu/Windows, and
-    real-extension release gates. **Provider artifact and real-extension
-    matrices are green; native platform and final review gates remain.**
+    real-extension release gates. **Implemented and green for the documented
+    static threat model; active ancestor mutation remains explicitly excluded.**
 12. Only then open a separately reviewed daemon design phase.
 
 See the [full build contract](PLAN.md#phases-and-red-green-slices) for branches,
