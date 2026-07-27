@@ -15,11 +15,55 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm test
       - run: npm pack --dry-run
+
+  provider-artifact:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            version: 0.36.0
+            sha256: fc6550f62eedf6d19fab2917ffda71d68929b31e3d7be24eb58acfdc44a23cc2
+          - os: ubuntu-latest
+            version: 0.37.0
+            sha256: aefadd1e6fe8375d551b8e29fea5e5a5861c92a08dd1d6a96c7d0c00082e3ae7
+          - os: windows-latest
+            version: 0.36.0
+            sha256: fc6550f62eedf6d19fab2917ffda71d68929b31e3d7be24eb58acfdc44a23cc2
+          - os: windows-latest
+            version: 0.37.0
+            sha256: aefadd1e6fe8375d551b8e29fea5e5a5861c92a08dd1d6a96c7d0c00082e3ae7
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Download and verify pi-subagents ${{ matrix.version }}
+        run: node test/download-provider-artifact.mjs
+        env:
+          PI_SUBAGENTS_VERSION: ${{ matrix.version }}
+          PI_SUBAGENTS_TARBALL: ${{ runner.temp }}/pi-subagents.tgz
+          PI_SUBAGENTS_TARBALL_SHA256: ${{ matrix.sha256 }}
+      - run: npm run test:provider-artifact
+        env:
+          PI_SUBAGENTS_TARBALL: ${{ runner.temp }}/pi-subagents.tgz
+          PI_SUBAGENTS_TARBALL_SHA256: ${{ matrix.sha256 }}
+      - run: npm run test:provider-extension-e2e
+        env:
+          PI_SUBAGENTS_TARBALL: ${{ runner.temp }}/pi-subagents.tgz
+          PI_SUBAGENTS_TARBALL_SHA256: ${{ matrix.sha256 }}

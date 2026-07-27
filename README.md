@@ -1,30 +1,31 @@
 # pi-subagents-workflows
 
-`pi-subagents-workflows` is a planned add-on for
-[`pi-subagents`](https://github.com/nicobailon/pi-subagents). It will provide a
-strict JSON workflow definition format, a deterministic foreground scheduler,
-and a Pi tool/command adapter while leaving child-agent execution and policy in
+`pi-subagents-workflows` is a foreground orchestration add-on for
+[`pi-subagents`](https://github.com/nicobailon/pi-subagents). It provides a
+strict JSON workflow definition format, a deterministic scheduler, and a Pi
+tool/command adapter while leaving child-agent execution and policy in
 `pi-subagents`.
 
-**Status: strict restricted IR v1 parser, sequential/barriered-parallel/item-local
-pipeline execution, the public delegation-v2 leaf adapter, and internal strict
-workflow-source/audit-store modules are implemented.** The package identity,
-public IR and engine types, immutable definition parser, shared workflow
-semaphore, typed aligned execution seam, provider adapter, no-op extension
-entry point, tests, and CI exist. The source/store modules are not registered as
-a Pi tool or command. The Workflow tool/command and published npm package do
-not exist yet. The adapter is artifact-tested against
-reviewed provider commit `f936daa`, but a runtime `pi-subagents` dependency
-cannot be added until that provider seam is published. See
-[PLAN.md](PLAN.md) for the TDD and release contract.
+**Status: the restricted IR v1 parser, sequential/barriered-parallel/item-local
+pipeline engine, public delegation-v2 adapter, strict source/audit layer, shared
+foreground service, bounded renderer, `pi_workflow` model tool, and
+`/pi-workflow` command are implemented.** Focused and provider-free unit gates
+are green, and the adapter is artifact-tested against the supported published
+`pi-subagents` 0.36.0 and 0.37.0 releases. Packed real-Pi sessions also pass
+through the actual provider extension for both releases. Local Node 24 unit,
+package, provider-matrix, correctness-review, and security-review gates are
+green. The package is not published yet: native Ubuntu/Windows CI and
+filesystem/ACL/reparse gates still have to pass. See [PLAN.md](PLAN.md) for the
+TDD and release contract.
 
 ## Current branches and identity
 
 - `feat/build-workflow-extension` preserves the research and pre-code contract.
 - `chore/establish-pi-subagents-workflows` contains the identity scaffold.
 - `feat/foreground-workflow-ir-v1` is the current consumer branch.
-- The provider branch is `feat/add-workflow-delegation-v2` in
-  `pi-subagents`, rebased onto current upstream before feature edits.
+- Delegation v2 shipped in `pi-subagents@0.36.0`; 0.37.0 is the current
+  supported release. The historical provider feature branch is retained only
+  for provenance.
 
 The repository, canonical local directory, and npm package use the full name
 `pi-subagents-workflows`. The GitHub repository is
@@ -46,12 +47,13 @@ for the release gates.
 - **Identity:** full repository and package rename from `pi-workflows` to
   `pi-subagents-workflows`.
 
-## Internal workflow provenance and run audit slice
+## Workflow provenance and foreground audit
 
-The unregistered extension internals now resolve three explicit definition
-source kinds: inline JSON, exact saved names, and capability-gated user paths.
-Saved names are lowercase bounded identifiers and resolve non-recursively from
-only:
+The extension resolves three explicit definition source kinds: inline JSON,
+exact saved names, and capability-gated user paths. The model-facing tool may
+use only inline or saved definitions. Explicit paths are available only through
+the user command. Saved names are lowercase bounded identifiers and resolve
+non-recursively from only:
 
 ```text
 <agent-dir>/pi-subagents-workflows/definitions/<name>.workflow.json
@@ -62,8 +64,8 @@ A name present in both roots is rejected as ambiguous. File reads accept only
 regular `*.workflow.json` files up to 1 MiB, reject duplicate JSON keys, links,
 and unsafe encoding, and retain the exact accepted UTF-8 text and SHA-256 audit
 provenance. Reads detect observable path/content replacement before returning.
-Arbitrary path sources are denied unless the caller explicitly supplies the
-future user-command path capability; no model tool is registered yet.
+Arbitrary path sources are denied without the explicit user-command
+capability; the `pi_workflow` model tool never receives that capability.
 
 The internal foreground run store derives a session directory from the SHA-256
 of the caller-supplied stable Pi session identity and writes per-run
@@ -89,6 +91,40 @@ ancestors between Node path operations; native Windows reparse/ACL and hostile
 same-UID namespace hardening remain explicit Phase 14 release tests. Audit files
 can contain prompts and retained results and are not automatically deleted.
 
+Each foreground launch also writes bounded, versioned advisory start/terminal
+pointers to the current Pi session branch. Restoration descriptor-checks only
+a bounded tail of `sessionManager.getBranch()` and never invokes entry
+accessors. Pointers are never ownership, replay, or recovery state. Session
+shutdown closes host admission before awaiting anything, cancels only runs
+owned by the current extension instance, waits for bounded cleanup, and
+disposes its cwd-scoped provider adapters. A late source resolution cannot
+reopen the stale extension instance.
+
+## Pi tool and command
+
+The model tool is `pi_workflow`. It accepts a strict inline definition or an
+exact saved name plus an arguments object, runs once in the foreground, streams
+bounded progress summaries, and returns a bounded result plus exact nested Pi
+usage. It does not accept paths and cannot save, resume, replay, detach, or
+adopt a run.
+
+The user command exposes only these forms:
+
+```text
+/pi-workflow run --name <name> [--args <JSON-object>]
+/pi-workflow run --path <path.workflow.json> [--args <JSON-object>]
+/pi-workflow list
+/pi-workflow status [runId]
+/pi-workflow cancel <runId>
+```
+
+TUI command runs use a cancellable foreground loader; Escape closes the modal
+immediately while the command still awaits owned audit/provider cleanup.
+Print/RPC mode awaits the same shared service directly. `cancel` targets an
+exact active run ID. A stored
+incomplete audit is reported as not running and must be rerun explicitly.
+There is intentionally no save, resume, detach, daemon, or background command.
+
 ## Provider adapter
 
 `createPiSubagentsLeafAdapter({ events, cwd, context? })` is exported from the
@@ -96,18 +132,20 @@ package root. It loads only the public `pi-subagents/delegation` subpath at
 runtime, requires protocol version 2, defaults to fresh context, and leaves
 model, thinking, skill, artifact, and other authority policy to the installed
 provider. Each adapter returns a `leafRunner` for `executeWorkflow` and an
-idempotent `dispose()` method. Missing or malformed v2 providers reject with
-`PiSubagentsV2UnavailableError`; there is no delegation-v1 fallback.
+idempotent `dispose()` method. The package pins the supported runtime range
+`pi-subagents >=0.36.0 <0.38.0`; malformed or incompatible public v2 exports
+reject with `PiSubagentsV2UnavailableError`. There is no delegation-v1
+fallback.
 
 The adapter shares one response listener and one update listener per event bus,
 uses exact owned-attempt cancellation tuples, defensively validates untrusted
 provider payloads, and exposes only engine terminal/progress values—not raw
 provider DTOs or metadata.
 
-## What must land in pi-subagents first
+## Published provider contract
 
-A foreground release still depends on publishing the reviewed delegation-v2
-seam in `pi-subagents`, which provides:
+Delegation v2 is published in `pi-subagents@0.36.0` and remains supported in
+0.37.0. The public contract provides:
 
 - concurrent owned single-agent dispatch;
 - stable logical `ownerRunId` / `nodeId` identity with a fresh `requestId` for
@@ -116,12 +154,16 @@ seam in `pi-subagents`, which provides:
 - requested/effective thinking and model information;
 - detailed input, output, cache, cost, and turn usage;
 - explicit duplicate-node rejection and exact correlated cancellation;
-- at-most-once terminal delivery; and
-- strict v1 compatibility without changing model-facing tool behavior.
+- at-most-once terminal delivery;
+- typed `structured_output_failed` terminals; and
+- strict delegation-v1 compatibility without changing model-facing tool
+  behavior.
 
-The provider branch must first be rebased onto current upstream and its
-baseline failures classified. A v2-capable provider release or RC is required
-before this add-on pins a final dependency range.
+CI downloads the immutable 0.36.0 and 0.37.0 registry tarballs, verifies their
+reviewed SHA-256 digests, and runs the packed consumer adapter matrix against
+both. The `pi-subagents` extension must still be enabled in Pi: installing this
+package provides the protocol dependency but does not silently activate the
+provider extension or widen child authority.
 
 ## IR v1 example
 
@@ -224,12 +266,13 @@ are rendered with an incremental 256 KiB UTF-8 ceiling. Successful text and
 structured values use an effective per-result cap of
 `min(1 MiB, floor(64 MiB / definition.limits.maxCalls))`, bounding retained
 successful-result payloads to 64 MiB per workflow; oversize provider results
-become typed `provider_contract_violation` failures. Every reported usage field
-is capped per leaf at
-`floor(Number.MAX_SAFE_INTEGER / definition.limits.maxCalls)`; integer usage
-fields must still be safe integers, and reported turns/tool calls must still
-respect their leaf limits. This ensures that at most `maxCalls` accepted usages
-cannot overflow later aggregation. Accepted usage and `leaf_terminal` events
+become typed `provider_contract_violation` failures. Every reported usage field is capped per leaf at
+`floor(Number.MAX_SAFE_INTEGER / definition.limits.maxCalls)`; the input,
+output, cache-read, and cache-write token subtotal must also fit within that
+same cap. Integer usage fields must still be safe integers, and reported
+turns/tool calls must still respect their leaf limits. This ensures that at
+most `maxCalls` accepted usages—and Pi's derived `totalTokens`—cannot overflow
+later aggregation. Accepted usage and `leaf_terminal` events
 are accounted exactly once in item/stage source order, independent of settlement
 order. Progress delivery retains at most eight pending updates per active leaf
 and excess updates are ignored. Unknown fields,
@@ -247,14 +290,15 @@ values, unsupported policies, and malformed schemas or limits fail parsing.
 6. Build strict IR v1 through a parser red-green slice.
 7. Build sequential typed execution, barriered parallel execution, and
    item-local pipelines as separate red-green slices.
-8. Add the public `pi-subagents` `LeafRunner` adapter. **Implemented and green
-   against the reviewed provider artifact; dependency publication remains
-   blocked upstream.**
+8. Add the public `pi-subagents` `LeafRunner` adapter. **Implemented against
+   the published 0.36/0.37 provider range.**
 9. Add strict definition provenance and the foreground-only run audit store.
-   **Internal source/store slice implemented; no Pi registration exists.**
+   **Implemented and independently reviewed.**
 10. Add the shared foreground run service, renderer, Pi tool, and command.
+    **Implemented, including packed real-extension acceptance.**
 11. Pass packed-package, security, provider-matrix, Node 24 Ubuntu/Windows, and
-    real-extension release gates.
+    real-extension release gates. **Provider artifact and real-extension
+    matrices are green; native platform and final review gates remain.**
 12. Only then open a separately reviewed daemon design phase.
 
 See the [full build contract](PLAN.md#phases-and-red-green-slices) for branches,
@@ -273,9 +317,11 @@ npm test
 npm run pack:check
 ```
 
-`npm test` remains provider-free and runs the unit parser, engine, adapter fake
-bus, manifest/tarball contracts, and strict typecheck. The separately required
-provider artifact gate fails clearly unless a tarball is supplied:
+`npm test` remains provider-extension-free: it does not start child agents or
+load the provider extension. It runs the parser, engine, fake-bus adapter,
+foreground service/host adapter, source/store, manifest/tarball, and strict
+typecheck suites. The separately required provider artifact gate fails clearly
+unless a tarball is supplied:
 
 ```sh
 PI_SUBAGENTS_TARBALL=/path/to/pi-subagents.tgz \
@@ -288,9 +334,22 @@ the repository, installs both tarballs without lifecycle scripts or a lockfile,
 loads their installed public exports through Jiti, and executes the real adapter
 over a fake event bus. It proves public artifact resolution and request/response
 compatibility at the exported seam; it does not instantiate the provider
-extension handler. There is no committed provider artifact or path. The real
-cross-extension Pi integration suite remains a Phase 14 gate because the
-Workflow tool/command is not implemented.
+extension handler. There is no committed provider artifact or path. CI runs
+this gate against SHA-256-pinned 0.36.0 and 0.37.0 registry tarballs.
+
+The companion real-extension gate uses the same tarball variables:
+
+```sh
+PI_SUBAGENTS_TARBALL=/path/to/pi-subagents.tgz \
+PI_SUBAGENTS_TARBALL_SHA256=<optional-reviewed-sha256> \
+npm run test:provider-extension-e2e
+```
+
+It loads the packed manifest-declared Workflow and provider extensions into a
+real Pi session, dispatches one leaf through the real delegation handler to a
+test-owned faux-provider child process, and verifies exact result delivery,
+branch pointers, terminal audit state, and shutdown. It makes no network model
+calls. This gate is green against both supported provider releases.
 
 ## Research
 

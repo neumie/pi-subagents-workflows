@@ -194,6 +194,22 @@ test("maps structured values, effective metadata, every status, and usage", asyn
 				usage,
 			},
 		},
+		{
+			wire: {
+				status: "structured_output_failed",
+				error: "structured output was not captured",
+				usage,
+			},
+			expected: {
+				status: "failed",
+				error: {
+					code: "structured_output_failed",
+					message: "structured output was not captured",
+					retryable: false,
+				},
+				usage,
+			},
+		},
 		...[
 			"timed_out",
 			"cancelled",
@@ -519,13 +535,16 @@ test("shares two listeners across adapters and concurrent leaves and scopes disp
 	reloaded.dispose();
 });
 
-test("fails with a bounded typed error when the unpublished provider is absent", async () => {
-	await assert.rejects(
-		createPiSubagentsLeafAdapter({ events: new FakeBus(), cwd: "/workspace" }),
-		(error: unknown) =>
-			error instanceof PiSubagentsV2UnavailableError &&
-			Buffer.byteLength(error.message, "utf8") <= 1024,
-	);
+test("loads the supported published provider through its public export", async () => {
+	const bus = new FakeBus();
+	const adapter = await createPiSubagentsLeafAdapter({
+		events: bus,
+		cwd: "/workspace",
+	});
+	assert.equal(bus.listeners.size, 2);
+	assert.ok([...bus.listeners.values()].every((listeners) => listeners.size === 1));
+	adapter.dispose();
+	assert.ok([...bus.listeners.values()].every((listeners) => listeners.size === 0));
 });
 
 test("forwards only bounded exact-tuple updates and swallows progress rejection", async () => {
