@@ -148,6 +148,23 @@ function parseEnum(
   }
 }
 
+function validateRequiredProperties(
+  properties: Readonly<Record<string, JsonValue>>,
+  required: readonly JsonValue[],
+  path: string,
+): void {
+  const seen = new Set<string>();
+  for (const [index, name] of required.entries()) {
+    if (typeof name !== "string" || isForbiddenName(name))
+      fail(`${path}.required[${index}]`, "required name is invalid");
+    if (seen.has(name))
+      fail(`${path}.required[${index}]`, "required names must be unique");
+    seen.add(name);
+    if (!Object.hasOwn(properties, name))
+      fail(`${path}.required[${index}]`, "required name is not declared in properties");
+  }
+}
+
 function parseSchemaNode(value: JsonValue, path: string, depth: number): SchemaV1 {
   if (depth > 16) fail(path, "schema depth exceeds 16");
   const object = objectAt(value, path);
@@ -196,14 +213,7 @@ function parseSchemaNode(value: JsonValue, path: string, depth: number): SchemaV
         parseSchemaNode(propertySchema, propertyPath(`${path}.properties`, name), depth + 1);
       }
       const required = arrayAt(schema.required as JsonValue, `${path}.required`);
-      const seen = new Set<string>();
-      for (let index = 0; index < required.length; index += 1) {
-        const name = required[index];
-        if (typeof name !== "string" || isForbiddenName(name)) fail(`${path}.required[${index}]`, "required name is invalid");
-        if (seen.has(name)) fail(`${path}.required[${index}]`, "required names must be unique");
-        seen.add(name);
-        if (!Object.hasOwn(properties, name)) fail(`${path}.required[${index}]`, "required name is not declared in properties");
-      }
+      validateRequiredProperties(properties, required, path);
       return schema as unknown as SchemaV1;
     }
     default:
