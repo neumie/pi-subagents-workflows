@@ -15,9 +15,10 @@ requires an explicit release decision.
 - Use Node.js 24 and install with lifecycle scripts disabled.
 - Consume only published, supported `pi-subagents` artifacts. Never release
   against sibling source, `npm link`, deep imports, or an unreviewed tarball.
-- Required Ubuntu and Windows tests, package checks, and provider 0.36/0.37
-  artifact/real-extension jobs must all finish successfully. A timeout, retry,
-  or skipped required platform is not green.
+- Required Ubuntu and Windows tests, package checks, and the Cartesian Pi
+  0.81.0/0.82.1 by provider 0.36.0/0.37.0 artifact/real-extension matrix must
+  finish successfully. A timeout, retry, or skipped required combination is
+  not green.
 - Preserve the documented foreground and Windows threat boundaries. A release
   does not silently widen authority, persistence, or reparse guarantees.
 
@@ -59,8 +60,8 @@ Also require the branch CI matrix to pass:
 
 - Node 24 unit, type, and exact-package tests on Ubuntu and Windows;
 - SHA-verified `pi-subagents` 0.36.0 and 0.37.0 artifact smoke tests; and
-- packed real-extension Pi-session tests for both provider versions on both
-  operating systems.
+- packed real-extension Pi-session tests for Pi 0.81.0 and 0.82.1 with both
+  provider versions on both operating systems.
 
 Inspect the dry-run file list. It must contain only the declared package
 manifest, license, changelog, public documentation, and `src/` TypeScript
@@ -73,8 +74,9 @@ research intake, generated logs, or sibling dependencies.
 2. Create and publish a GitHub release tagged exactly `v0.1.0` at that commit.
    Do not create the tag from an older branch head. The workflow must verify
    the immutable event SHA against both the tag and the default branch.
-3. The release workflow must rerun the supported provider artifact and real
-   extension gates before the protected publish environment can be approved.
+3. The release workflow must rerun the complete supported host/provider matrix
+   on Ubuntu and Windows before the protected publish environment can be
+   approved.
 4. After an authorized reviewer approves that environment, the publish job
    checks the tag against `package.json`, then runs:
 

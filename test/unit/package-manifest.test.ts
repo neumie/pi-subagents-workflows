@@ -121,7 +121,7 @@ test("package exposes only stable barrels and one scaffold Pi extension", () => 
 	}
 });
 
-test("host peers and the published provider range stay explicit", () => {
+test("supported host and provider ranges stay explicit", () => {
 	const manifest = loadManifest();
 	const hostPackage = "@earendil-works/pi-coding-agent";
 
@@ -132,13 +132,13 @@ test("host peers and the published provider range stay explicit", () => {
 	});
 	assert.deepEqual(manifest.optionalDependencies, undefined);
 	assert.deepEqual(manifest.peerDependencies, {
-		[hostPackage]: ">=0.81.0 <0.82.0",
+		[hostPackage]: ">=0.81.0 <0.83.0",
 	});
 	assert.deepEqual(manifest.peerDependenciesMeta, {
 		[hostPackage]: { optional: true },
 	});
 	assert.deepEqual(manifest.devDependencies, {
-		[hostPackage]: "0.81.0",
+		[hostPackage]: "0.82.1",
 		"@types/node": "24.13.3",
 		typescript: "5.9.3",
 	});

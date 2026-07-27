@@ -12,9 +12,10 @@ foreground service, bounded renderer, `pi_workflow` model tool, and
 `/pi-workflow` command are implemented.** Focused and provider-free unit gates
 are green, and the adapter is artifact-tested against the supported published
 `pi-subagents` 0.36.0 and 0.37.0 releases. Packed real-Pi sessions also pass
-through the actual provider extension for both releases. Local and hosted Node
-24 Ubuntu/Windows unit, type, package, provider-matrix, correctness-review, and
-security-review gates are green. Native Windows acceptance verifies exact audit
+through the actual provider extension for both releases on Pi 0.81.0 and
+0.82.1. Local and hosted Node 24 Ubuntu/Windows unit, type, package,
+provider-matrix, correctness-review, and security-review gates are green.
+Native Windows acceptance verifies exact audit
 DACLs and real file-link/junction rejection under the documented static threat
 model. The release gates are satisfied, but the package remains unpublished
 pending an explicit release decision; active ancestor mutation is excluded
@@ -23,20 +24,37 @@ release notes, [PLAN.md](PLAN.md) for the TDD contract, and the
 [repository release checklist](https://github.com/neumie/pi-subagents-workflows/blob/main/RELEASING.md)
 for the controlled first-publish process.
 
-## Current branches and identity
+## Repository identity
 
-- `feat/build-workflow-extension` preserves the research and pre-code contract.
-- `chore/establish-pi-subagents-workflows` contains the identity scaffold.
-- `feat/foreground-workflow-ir-v1` is the current consumer branch.
-- Delegation v2 shipped in `pi-subagents@0.36.0`; 0.37.0 is the current
-  supported release. The historical provider feature branch is retained only
-  for provenance.
+The complete foreground implementation is merged to `main`. Historical
+research, scaffold, and provider feature branches are retained only for
+provenance. Delegation v2 shipped in `pi-subagents@0.36.0`; 0.37.0 remains the
+current supported provider release.
 
 The repository, canonical local directory, and npm package use the full name
 `pi-subagents-workflows`. The GitHub repository is
 <https://github.com/neumie/pi-subagents-workflows>. All release gates are green;
 npm publication remains a separate explicit operation governed by
 [RELEASING.md](https://github.com/neumie/pi-subagents-workflows/blob/main/RELEASING.md).
+
+## Test a local checkout in Pi
+
+The supported host range is
+`@earendil-works/pi-coding-agent >=0.81.0 <0.83.0`; Node 24 or newer and an
+enabled `pi-subagents >=0.36.0 <0.38.0` extension are required. Install local
+dependencies without lifecycle scripts, then either start a disposable Pi
+session or register the checkout persistently:
+
+```sh
+npm ci --ignore-scripts
+pi -e /absolute/path/to/pi-subagents-workflows
+# or: pi install /absolute/path/to/pi-subagents-workflows
+```
+
+After persistent installation, run `/reload`. Verify discovery with
+`/pi-workflow list`, then run a reviewed inline, saved, or user-path workflow.
+Local Pi packages execute with the user's full Pi authority; review the source
+before enabling them.
 
 ## Selected decisions
 
@@ -172,8 +190,9 @@ Delegation v2 is published in `pi-subagents@0.36.0` and remains supported in
   behavior.
 
 CI downloads the immutable 0.36.0 and 0.37.0 registry tarballs, verifies their
-reviewed SHA-256 digests, and runs the packed consumer adapter matrix against
-both. The `pi-subagents` extension must still be enabled in Pi: installing this
+reviewed SHA-256 digests, and runs the packed real-session matrix against both
+providers on Pi 0.81.0 and 0.82.1 under Ubuntu and Windows. The `pi-subagents`
+extension must still be enabled in Pi: installing this
 package provides the protocol dependency but does not silently activate the
 provider extension or widen child authority.
 
@@ -352,16 +371,20 @@ this gate against SHA-256-pinned 0.36.0 and 0.37.0 registry tarballs.
 The companion real-extension gate uses the same tarball variables:
 
 ```sh
+PI_CODING_AGENT_VERSION=0.82.1 \
 PI_SUBAGENTS_TARBALL=/path/to/pi-subagents.tgz \
 PI_SUBAGENTS_TARBALL_SHA256=<optional-reviewed-sha256> \
 npm run test:provider-extension-e2e
 ```
 
-It loads the packed manifest-declared Workflow and provider extensions into a
-real Pi session, dispatches one leaf through the real delegation handler to a
+The host version must be one of the exact compatibility baselines, 0.81.0 or
+0.82.1. The gate loads the packed manifest-declared Workflow and provider
+extensions into a real Pi session, dispatches one leaf through the real
+delegation handler to a
 test-owned faux-provider child process, and verifies exact result delivery,
 branch pointers, terminal audit state, and shutdown. It makes no network model
-calls. This gate is green against both supported provider releases.
+calls. This gate is green across both supported host baselines and both
+supported provider releases.
 
 ## Research
 

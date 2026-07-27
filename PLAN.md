@@ -348,10 +348,11 @@ deterministic-event, tarball-install, provider minimum/current, and real
 extension tests. Document foreground, active-context, current-authority, and
 non-durable limits.
 
-The provider minimum/current artifact and real-extension jobs, local and hosted
-Node 24 Ubuntu/Windows unit/type/package gates, independent
-correctness/security reviews, and native static Windows ACL/reparse acceptance
-are green. The Windows public-seam test starts from broad inherited and
+The provider minimum/current artifact and real-extension jobs across exact Pi
+0.81.0/0.82.1 host baselines, local and hosted Node 24 Ubuntu/Windows
+unit/type/package gates, independent correctness/security reviews, and native
+static Windows ACL/reparse acceptance are green. The Windows public-seam test
+starts from broad inherited and
 protected ACLs, requires exact current-user/`SYSTEM`/Administrators DACLs, and
 uses real file links and junctions without a Windows skip. This completes Phase
 14 for the documented static/observable threat model. Trusted launch state is a
@@ -364,10 +365,11 @@ Commits:
 - `test(windows): complete native filesystem acceptance`
 
 Gate: unit, integration, and real extension E2E pass on Node 24 Ubuntu and
-Windows; `npm ci --ignore-scripts`, `npm pack --dry-run`, clean tarball install,
-every public export, and minimum/current provider jobs are green. The
-documented foreground gate is satisfied; publishing a `0.x` release remains a
-separate explicit decision.
+Windows for Pi 0.81.0/0.82.1 and provider 0.36.0/0.37.0;
+`npm ci --ignore-scripts`, `npm pack --dry-run`, clean tarball install, every
+public export, and the complete host/provider matrix are green. The documented
+foreground gate is satisfied; publishing a `0.x` release remains a separate
+explicit decision.
 
 ### 15. Later daemon phase
 
