@@ -8,9 +8,8 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { test } from "node:test";
-import { pathToFileURL } from "node:url";
 
 import { PACKAGE_VERSION } from "../../src/version.ts";
 
@@ -275,8 +274,8 @@ test("packed package imports every public entry through Jiti from a clean instal
 				type: "module",
 				dependencies: {
 					jiti: "2.7.0",
-					"pi-subagents": pathToFileURL(providerTarball).href,
-					"pi-subagents-workflows": pathToFileURL(tarball).href,
+					"pi-subagents": `file:./${basename(providerTarball)}`,
+					"pi-subagents-workflows": `file:./${basename(tarball)}`,
 				},
 			}),
 		);
