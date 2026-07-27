@@ -11,8 +11,8 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { isAbsolute, join, relative, resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { basename, isAbsolute, join, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
 const repository = fileURLToPath(new URL("..", import.meta.url));
@@ -94,6 +94,10 @@ test("packed extension executes through the real published provider in a real Pi
 			temporaryRoot,
 			packedReport[0]?.filename ?? "missing-consumer.tgz",
 		);
+		const localConsumerTarball = join(fixture, basename(consumerTarball));
+		const localProviderTarball = join(fixture, basename(providerTarball));
+		copyFileSync(consumerTarball, localConsumerTarball);
+		copyFileSync(providerTarball, localProviderTarball);
 		writeFileSync(
 			join(fixture, "package.json"),
 			JSON.stringify({
@@ -102,8 +106,8 @@ test("packed extension executes through the real published provider in a real Pi
 				dependencies: {
 					"@earendil-works/pi-ai": "0.81.0",
 					"@earendil-works/pi-coding-agent": "0.81.0",
-					"pi-subagents": pathToFileURL(providerTarball).href,
-					"pi-subagents-workflows": pathToFileURL(consumerTarball).href,
+					"pi-subagents": `file:./${basename(localProviderTarball)}`,
+					"pi-subagents-workflows": `file:./${basename(localConsumerTarball)}`,
 				},
 			}),
 		);
