@@ -188,8 +188,17 @@ interface WindowsAclSnapshot {
 }
 
 function runWindowsPowerShell(script: string, path: string): string {
-	const result = spawnSync(
+	const systemRoot = process.env.SystemRoot;
+	assert.ok(systemRoot, "native Windows ACL tests require SystemRoot");
+	const executable = join(
+		systemRoot,
+		"System32",
+		"WindowsPowerShell",
+		"v1.0",
 		"powershell.exe",
+	);
+	const result = spawnSync(
+		executable,
 		[
 			"-NoLogo",
 			"-NoProfile",
@@ -216,9 +225,10 @@ function installBroadWindowsAcl(path: string): void {
 	runWindowsPowerShell(
 		String.raw`
 $ErrorActionPreference = 'Stop'
-$acl = Get-Acl -LiteralPath $env:PI_WORKFLOWS_ACL_PATH
+$acl = [System.IO.Directory]::GetAccessControl($env:PI_WORKFLOWS_ACL_PATH)
 $acl.SetAccessRuleProtection($true, $false)
-foreach ($rule in @($acl.Access)) {
+$existingRules = $acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier])
+foreach ($rule in @($existingRules)) {
   [void]$acl.RemoveAccessRuleSpecific($rule)
 }
 $currentSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
@@ -229,7 +239,7 @@ $allow = [System.Security.AccessControl.AccessControlType]::Allow
 $fullControl = [System.Security.AccessControl.FileSystemRights]::FullControl
 [void]$acl.AddAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new($currentSid, $fullControl, $inheritance, $propagation, $allow))
 [void]$acl.AddAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new($everyoneSid, $fullControl, $inheritance, $propagation, $allow))
-Set-Acl -LiteralPath $env:PI_WORKFLOWS_ACL_PATH -AclObject $acl
+[System.IO.Directory]::SetAccessControl($env:PI_WORKFLOWS_ACL_PATH, $acl)
 `,
 		path,
 	);
@@ -239,7 +249,7 @@ function readWindowsAcl(path: string): WindowsAclSnapshot {
 	const output = runWindowsPowerShell(
 		String.raw`
 $ErrorActionPreference = 'Stop'
-$acl = Get-Acl -LiteralPath $env:PI_WORKFLOWS_ACL_PATH
+$acl = [System.IO.Directory]::GetAccessControl($env:PI_WORKFLOWS_ACL_PATH)
 $currentSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 $rules = @($acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]) | ForEach-Object {
   [pscustomobject]@{
