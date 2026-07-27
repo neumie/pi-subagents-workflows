@@ -15,7 +15,6 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { test } from "node:test";
 
-const npm = process.platform === "win32" ? "npm.cmd" : "npm";
 const repository = fileURLToPath(new URL("..", import.meta.url));
 
 function run(command, args, options = {}) {
@@ -30,6 +29,13 @@ function run(command, args, options = {}) {
 		result.error?.stack || result.stderr || result.stdout,
 	);
 	return result.stdout;
+}
+
+function runNpm(args, options = {}) {
+	const npmCli = process.env.npm_execpath;
+	return npmCli === undefined
+		? run(process.platform === "win32" ? "npm.cmd" : "npm", args, options)
+		: run(process.execPath, [npmCli, ...args], options);
 }
 
 function manifestExtension(fixture, packageName) {
@@ -73,8 +79,7 @@ test("packed extension executes through the real published provider in a real Pi
 	try {
 		mkdirSync(fixture);
 		const packedReport = JSON.parse(
-			run(
-				npm,
+			runNpm(
 				[
 					"pack",
 					"--json",
@@ -102,8 +107,7 @@ test("packed extension executes through the real published provider in a real Pi
 				},
 			}),
 		);
-		run(
-			npm,
+		runNpm(
 			[
 				"install",
 				"--ignore-scripts",

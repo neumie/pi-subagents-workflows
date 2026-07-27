@@ -6,7 +6,6 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
 
-const npm = process.platform === "win32" ? "npm.cmd" : "npm";
 const repository = new URL("..", import.meta.url);
 
 function run(command, args, options = {}) {
@@ -14,8 +13,15 @@ function run(command, args, options = {}) {
 		encoding: "utf8",
 		...options,
 	});
-	assert.equal(result.status, 0, result.stderr || result.stdout);
+	assert.equal(result.status, 0, result.error?.stack || result.stderr || result.stdout);
 	return result.stdout;
+}
+
+function runNpm(args, options = {}) {
+	const npmCli = process.env.npm_execpath;
+	return npmCli === undefined
+		? run(process.platform === "win32" ? "npm.cmd" : "npm", args, options)
+		: run(process.execPath, [npmCli, ...args], options);
 }
 
 test("packed consumer executes delegation V2 through an installed provider artifact", () => {
@@ -43,8 +49,7 @@ test("packed consumer executes delegation V2 through an installed provider artif
 	const fixture = join(temporaryRoot, "fixture");
 	try {
 		const packedReport = JSON.parse(
-			run(
-				npm,
+			runNpm(
 				[
 					"pack",
 					"--json",
@@ -67,8 +72,7 @@ test("packed consumer executes delegation V2 through an installed provider artif
 			join(fixture, "package.json"),
 			JSON.stringify({ private: true, type: "module" }),
 		);
-		run(
-			npm,
+		runNpm(
 			[
 				"install",
 				consumerTarball,
