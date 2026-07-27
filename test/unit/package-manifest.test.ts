@@ -78,7 +78,7 @@ test("package manifest establishes the pi-subagents-workflows identity", () => {
 	]);
 	assert.deepEqual(manifest.repository, {
 		type: "git",
-		url: `${repositoryUrl}.git`,
+		url: `git+${repositoryUrl}.git`,
 	});
 	assert.equal(manifest.homepage, repositoryUrl);
 	assert.deepEqual(manifest.bugs, { url: `${repositoryUrl}/issues` });
@@ -99,7 +99,13 @@ test("package exposes only stable barrels and one scaffold Pi extension", () => 
 	assert.deepEqual(manifest.pi, {
 		extensions: ["./src/extension/index.ts"],
 	});
-	assert.deepEqual(manifest.files, ["src", "README.md", "PLAN.md", "LICENSE"]);
+	assert.deepEqual(manifest.files, [
+		"src",
+		"README.md",
+		"PLAN.md",
+		"CHANGELOG.md",
+		"LICENSE",
+	]);
 
 	for (const path of [
 		...Object.values(manifest.exports ?? {}),
@@ -187,6 +193,7 @@ test("dry-run tarball contains only declared source and documentation", () => {
 	const packedFiles = reports[0]?.files.map(({ path }) => path).sort();
 	assert.ok(packedFiles);
 	assert.deepEqual(packedFiles, [
+		"CHANGELOG.md",
 		"LICENSE",
 		"PLAN.md",
 		"README.md",

@@ -16,9 +16,12 @@ through the actual provider extension for both releases. Local and hosted Node
 24 Ubuntu/Windows unit, type, package, provider-matrix, correctness-review, and
 security-review gates are green. Native Windows acceptance verifies exact audit
 DACLs and real file-link/junction rejection under the documented static threat
-model. The package remains unpublished pending an explicit release decision;
-active ancestor mutation is excluded rather than claimed solved. See
-[PLAN.md](PLAN.md) for the TDD and release contract.
+model. The release gates are satisfied, but the package remains unpublished
+pending an explicit release decision; active ancestor mutation is excluded
+rather than claimed solved. See [CHANGELOG.md](CHANGELOG.md) for the `0.1.0`
+release notes, [PLAN.md](PLAN.md) for the TDD contract, and the
+[repository release checklist](https://github.com/neumie/pi-subagents-workflows/blob/main/RELEASING.md)
+for the controlled first-publish process.
 
 ## Current branches and identity
 
@@ -31,8 +34,9 @@ active ancestor mutation is excluded rather than claimed solved. See
 
 The repository, canonical local directory, and npm package use the full name
 `pi-subagents-workflows`. The GitHub repository is
-<https://github.com/neumie/pi-subagents-workflows>; npm publication still waits
-for the release gates.
+<https://github.com/neumie/pi-subagents-workflows>. All release gates are green;
+npm publication remains a separate explicit operation governed by
+[RELEASING.md](https://github.com/neumie/pi-subagents-workflows/blob/main/RELEASING.md).
 
 ## Selected decisions
 
@@ -44,8 +48,9 @@ for the release gates.
   will not claim a stricter sandbox or capability boundary.
 - **Integration:** public delegation v2 only, with no deep imports or silent
   delegation-v1 fallback.
-- **Lifecycle:** foreground first. Daemon, replay, leases, reconciliation, and
-  adoption are blocked until the full foreground matrix is green.
+- **Lifecycle:** foreground first. The foreground matrix is green; daemon,
+  replay, leases, reconciliation, and adoption remain blocked until a
+  foreground `0.x` release and a separately reviewed daemon design.
 - **Identity:** full repository and package rename from `pi-workflows` to
   `pi-subagents-workflows`.
 
