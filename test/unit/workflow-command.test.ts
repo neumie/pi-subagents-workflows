@@ -23,6 +23,19 @@ test("command parser accepts exact run, list, status, and cancel forms", () => {
 			args: {},
 		},
 	);
+	assert.deepEqual(
+		parseWorkflowCommand(
+			String.raw`run --path "C:\work dir\release.workflow.json"`,
+		),
+		{
+			action: "run",
+			source: {
+				kind: "path",
+				path: String.raw`C:\work dir\release.workflow.json`,
+			},
+			args: {},
+		},
+	);
 	assert.deepEqual(parseWorkflowCommand("list"), { action: "list" });
 	assert.deepEqual(parseWorkflowCommand("status"), {
 		action: "status",
