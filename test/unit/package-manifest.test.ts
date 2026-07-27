@@ -176,13 +176,10 @@ test("supported host and provider ranges stay explicit", () => {
 });
 
 test("dry-run tarball contains only declared source and documentation", () => {
-	const result = spawnNpm(
-		["pack", "--dry-run", "--json", "--ignore-scripts"],
-		{
-			cwd: new URL("../..", import.meta.url),
-			encoding: "utf8",
-		},
-	);
+	const result = spawnNpm(["pack", "--dry-run", "--json", "--ignore-scripts"], {
+		cwd: new URL("../..", import.meta.url),
+		encoding: "utf8",
+	});
 
 	assert.equal(result.status, 0, result.stderr || result.stdout);
 	const reports = JSON.parse(result.stdout) as Array<{
