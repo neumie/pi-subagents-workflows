@@ -45,6 +45,16 @@ function loadManifest(): PackageManifest {
 	return JSON.parse(readFileSync(manifestPath, "utf8")) as PackageManifest;
 }
 
+function spawnNpm(
+	args: readonly string[],
+	options: { readonly cwd: string | URL; readonly encoding: "utf8" },
+) {
+	const npmCli = process.env.npm_execpath;
+	return npmCli === undefined
+		? spawnSync(process.platform === "win32" ? "npm.cmd" : "npm", args, options)
+		: spawnSync(process.execPath, [npmCli, ...args], options);
+}
+
 test("package manifest establishes the pi-subagents-workflows identity", () => {
 	const manifest = loadManifest();
 
@@ -161,9 +171,7 @@ test("host peers and the published provider range stay explicit", () => {
 });
 
 test("dry-run tarball contains only declared source and documentation", () => {
-	const npm = process.platform === "win32" ? "npm.cmd" : "npm";
-	const result = spawnSync(
-		npm,
+	const result = spawnNpm(
 		["pack", "--dry-run", "--json", "--ignore-scripts"],
 		{
 			cwd: new URL("../..", import.meta.url),
@@ -214,13 +222,11 @@ test("dry-run tarball contains only declared source and documentation", () => {
 });
 
 test("packed package imports every public entry through Jiti from a clean install", () => {
-	const npm = process.platform === "win32" ? "npm.cmd" : "npm";
 	const temporaryDirectory = mkdtempSync(
 		join(tmpdir(), "pi-subagents-workflows-pack-"),
 	);
 	try {
-		const packed = spawnSync(
-			npm,
+		const packed = spawnNpm(
 			[
 				"pack",
 				"--json",
@@ -236,8 +242,7 @@ test("packed package imports every public entry through Jiti from a clean instal
 			temporaryDirectory,
 			reports[0]?.filename ?? "missing.tgz",
 		);
-		const providerPacked = spawnSync(
-			npm,
+		const providerPacked = spawnNpm(
 			[
 				"pack",
 				"--json",
@@ -275,8 +280,7 @@ test("packed package imports every public entry through Jiti from a clean instal
 				},
 			}),
 		);
-		const installed = spawnSync(
-			npm,
+		const installed = spawnNpm(
 			["install", "--ignore-scripts", "--no-audit", "--no-fund"],
 			{ cwd: temporaryDirectory, encoding: "utf8" },
 		);
