@@ -85,11 +85,16 @@ A stored run without a result is labeled `incomplete (not running; rerun
 explicitly)`. These files do **not** provide resume, replay, cache reuse,
 adoption, daemon survival, detached execution, or exactly-once external
 effects. Running also never creates or changes saved definitions. POSIX modes
-are restrictive where supported, but this foreground audit layer is not a
-sandbox against an active same-account/privileged process that swaps filesystem
-ancestors between Node path operations; native Windows reparse/ACL and hostile
-same-UID namespace hardening remain explicit Phase 14 release tests. Audit files
-can contain prompts and retained results and are not automatically deleted.
+are restrictive where supported. On Windows, each new audit root, current
+session directory, and run directory receives a verified protected DACL limited
+to the current user, `SYSTEM`, and local Administrators before audit data is
+written. This requires a trusted process launch environment and `SystemRoot`.
+Path checks and ACL changes are pathname-based, not handle-pinned: they do not
+protect against any active local principal able to replace or swap an ancestor
+between checks, nor claim complete reparse-point resistance. Because the
+package is not yet published, development-era Windows records are not migrated;
+remove them manually if their inherited ACLs are uncertain. Audit files can
+contain prompts and retained results and are not automatically deleted.
 
 Each foreground launch also writes bounded, versioned advisory start/terminal
 pointers to the current Pi session branch. Restoration descriptor-checks only

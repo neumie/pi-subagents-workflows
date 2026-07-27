@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process";
 import { constants } from "node:fs";
 import type { BigIntStats } from "node:fs";
 import { lstat, mkdir, open, realpath } from "node:fs/promises";
@@ -62,6 +63,150 @@ function isMissing(error: unknown): boolean {
 		"code" in error &&
 		(error as { code?: unknown }).code === "ENOENT"
 	);
+}
+
+
+const WINDOWS_ACL_TIMEOUT_MS = 10_000;
+const WINDOWS_ACL_MAX_BUFFER_BYTES = 64 * 1024;
+const windowsAclScript = String.raw`
+$ErrorActionPreference = 'Stop'
+$path = $env:PI_SUBAGENTS_WORKFLOWS_ACL_PATH
+$acl = [System.IO.Directory]::GetAccessControl($path)
+$acl.SetAccessRuleProtection($true, $false)
+$existingRules = $acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier])
+foreach ($rule in @($existingRules)) {
+  [void]$acl.RemoveAccessRuleSpecific($rule)
+}
+$currentSid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
+$systemSid = [System.Security.Principal.SecurityIdentifier]::new('S-1-5-18')
+$administratorsSid = [System.Security.Principal.SecurityIdentifier]::new('S-1-5-32-544')
+$inheritance = [System.Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [System.Security.AccessControl.InheritanceFlags]::ObjectInherit
+$propagation = [System.Security.AccessControl.PropagationFlags]::None
+$allow = [System.Security.AccessControl.AccessControlType]::Allow
+$fullControl = [System.Security.AccessControl.FileSystemRights]::FullControl
+$acl.SetOwner($currentSid)
+foreach ($sid in @($currentSid, $systemSid, $administratorsSid)) {
+  [void]$acl.AddAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new($sid, $fullControl, $inheritance, $propagation, $allow))
+}
+[System.IO.Directory]::SetAccessControl($path, $acl)
+$verified = [System.IO.Directory]::GetAccessControl($path)
+if (-not $verified.AreAccessRulesProtected) {
+  throw 'Windows audit DACL inheritance remains enabled'
+}
+$verifiedOwner = $verified.GetOwner([System.Security.Principal.SecurityIdentifier]).Value
+if ($verifiedOwner -ne $currentSid.Value) {
+  throw 'Windows audit directory owner is not the current user'
+}
+$expected = @{}
+foreach ($sid in @($currentSid, $systemSid, $administratorsSid)) {
+  $expected[$sid.Value] = $false
+}
+$verifiedRules = $verified.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier])
+if ($verifiedRules.Count -ne $expected.Count) {
+  throw 'Windows audit DACL has an unexpected rule count'
+}
+foreach ($rule in @($verifiedRules)) {
+  $sid = $rule.IdentityReference.Value
+  if ($rule.IsInherited) {
+    throw 'Windows audit DACL contains an inherited rule'
+  }
+  if ($rule.AccessControlType -ne $allow) {
+    throw 'Windows audit DACL contains a deny rule'
+  }
+  if (-not $expected.ContainsKey($sid)) {
+    throw 'Windows audit DACL contains an unexpected principal'
+  }
+  if ($rule.FileSystemRights -ne $fullControl) {
+    throw 'Windows audit DACL principal does not have exact full control'
+  }
+  if ($rule.InheritanceFlags -ne $inheritance) {
+    throw 'Windows audit DACL rule has unexpected inheritance flags'
+  }
+  if ($rule.PropagationFlags -ne $propagation) {
+    throw 'Windows audit DACL rule has unexpected propagation flags'
+  }
+  if ($expected[$sid]) {
+    throw 'Windows audit DACL contains a duplicate principal'
+  }
+  $expected[$sid] = $true
+}
+foreach ($sid in @($expected.Keys)) {
+  if (-not $expected[$sid]) {
+    throw 'Windows audit DACL is missing a required principal'
+  }
+}
+`;
+
+export async function secureWindowsDirectoryAcl(path: string): Promise<void> {
+	if (process.platform !== "win32") return;
+	const absolute = absolutePath(path);
+	assertBoundedSafeText(absolute, "Windows ACL path", 4096);
+	const before = await inspectPathWithoutLinks(absolute);
+	const target = before.components.at(-1)?.stats;
+	if (!before.exists || !target?.isDirectory())
+		throw new Error("Windows ACL target must be an existing safe directory");
+
+	const systemRoot = process.env.SystemRoot ?? process.env.SYSTEMROOT;
+	assertBoundedSafeText(systemRoot, "Windows system root", 4096);
+	if (!isAbsolute(systemRoot))
+		throw new Error("Windows system root must be absolute");
+	const executable = resolve(
+		systemRoot,
+		"System32",
+		"WindowsPowerShell",
+		"v1.0",
+		"powershell.exe",
+	);
+	const executableInspection = await inspectPathWithoutLinks(executable);
+	if (
+		!executableInspection.exists ||
+		!executableInspection.components.at(-1)?.stats.isFile()
+	)
+		throw new Error("trusted Windows PowerShell executable is unavailable");
+
+	const environment: NodeJS.ProcessEnv = {
+		SystemRoot: systemRoot,
+		WINDIR: systemRoot,
+		PI_SUBAGENTS_WORKFLOWS_ACL_PATH: absolute,
+	};
+	for (const name of ["ComSpec", "TEMP", "TMP"] as const) {
+		const value = process.env[name];
+		if (value !== undefined) environment[name] = value;
+	}
+	await new Promise<void>((resolvePromise, rejectPromise) => {
+		execFile(
+			executable,
+			[
+				"-NoLogo",
+				"-NoProfile",
+				"-NonInteractive",
+				"-Command",
+				windowsAclScript,
+			],
+			{
+				encoding: "utf8",
+				env: environment,
+				maxBuffer: WINDOWS_ACL_MAX_BUFFER_BYTES,
+				timeout: WINDOWS_ACL_TIMEOUT_MS,
+				windowsHide: true,
+			},
+			(error) => {
+				if (error) {
+					rejectPromise(
+						new Error("failed to establish restrictive Windows audit ACL", {
+							cause: error,
+						}),
+					);
+					return;
+				}
+				resolvePromise();
+			},
+		);
+	});
+	const after = await inspectPathWithoutLinks(absolute);
+	if (!after.exists)
+		throw new Error("Windows ACL target disappeared during hardening");
+	assertSameSnapshots(before.components, after.components);
 }
 
 export async function inspectPathWithoutLinks(

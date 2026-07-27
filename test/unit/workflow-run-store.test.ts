@@ -385,14 +385,21 @@ test("native Windows run storage excludes broad inherited ACL access", async (t)
 		agentDir: paths.agentDir,
 		sessionId: "native-windows-acl-session",
 	});
+	const auditRoot = join(
+		paths.agentDir,
+		"pi-subagents-workflows",
+		"runs",
+	);
+	const sessionRoot = join(auditRoot, store.sessionKey);
+	await mkdir(sessionRoot, { recursive: true });
+	installBroadWindowsAcl(sessionRoot);
+	const priorSessionAcl = readWindowsAcl(sessionRoot);
+	assert.equal(priorSessionAcl.protected, true);
+	assert.equal(hasAllowedSid(priorSessionAcl, WINDOWS_EVERYONE_SID), true);
 	try {
 		await begin(store, paths);
-		const auditRoot = join(
-			paths.agentDir,
-			"pi-subagents-workflows",
-			"runs",
-		);
 		const auditRootAcl = readWindowsAcl(auditRoot);
+		const sessionAcl = readWindowsAcl(sessionRoot);
 		const runAcl = readWindowsAcl(store.runDirectory!);
 		assert.equal(
 			auditRootAcl.protected,
@@ -405,6 +412,16 @@ test("native Windows run storage excludes broad inherited ACL access", async (t)
 			"the audit root must not grant Everyone access",
 		);
 		assert.equal(
+			sessionAcl.protected,
+			true,
+			"a pre-existing session directory must be re-protected",
+		);
+		assert.equal(
+			hasAllowedSid(sessionAcl, WINDOWS_EVERYONE_SID),
+			false,
+			"a pre-existing session directory must drop Everyone access",
+		);
+		assert.equal(
 			hasAllowedSid(runAcl, WINDOWS_EVERYONE_SID),
 			false,
 			"run directories must not inherit Everyone access",
@@ -413,6 +430,11 @@ test("native Windows run storage excludes broad inherited ACL access", async (t)
 			hasAllowedSid(auditRootAcl, auditRootAcl.currentSid),
 			true,
 			"the current Windows user must retain audit-root access",
+		);
+		assert.equal(
+			hasAllowedSid(sessionAcl, sessionAcl.currentSid),
+			true,
+			"the current Windows user must retain session access",
 		);
 		assert.equal(
 			hasAllowedSid(runAcl, runAcl.currentSid),
