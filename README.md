@@ -19,7 +19,9 @@ Native Windows acceptance verifies exact audit
 DACLs and real file-link/junction rejection under the documented static threat
 model. The release gates are satisfied, but the package remains unpublished
 pending an explicit release decision; active ancestor mutation is excluded
-rather than claimed solved. See [CHANGELOG.md](CHANGELOG.md) for the `0.1.0`
+rather than claimed solved. Restricted JavaScript is the approved next-product
+contract in [PLAN.md](PLAN.md), not an implemented or runnable feature in this
+checkout. See [CHANGELOG.md](CHANGELOG.md) for the `0.1.0`
 release notes, [PLAN.md](PLAN.md) for the TDD contract, and the
 [repository release checklist](https://github.com/neumie/pi-subagents-workflows/blob/main/RELEASING.md)
 for the controlled first-publish process.
@@ -58,7 +60,9 @@ before enabling them.
 
 ## Selected decisions
 
-- **Definition language:** restricted, strict JSON IR; no workflow JavaScript.
+- **Definition languages:** strict JSON IR v1 is implemented and remains inert
+  and compatible. A separate approval-gated restricted-JavaScript engine is
+  planned but not yet implemented.
 - **Delivery:** phased full foreground build—IR,
   sequential/parallel/pipeline engine, provider adapter, and Pi
   tool/command—rather than a v1 spike release.
@@ -71,6 +75,34 @@ before enabling them.
   foreground `0.x` release and a separately reviewed daemon design.
 - **Identity:** full repository and package rename from `pi-workflows` to
   `pi-subagents-workflows`.
+
+## Planned restricted JavaScript engine
+
+The selected next increment is actual entropy-controlled JavaScript control
+flow, not a syntax-only lowering into IR v1. It is designed for bounded loops,
+reducers, aggregate returns, and output-driven fan-out through `agent()`,
+`parallel()`, `pipeline()`, `phase()`, and `log()`. JSON IR v1 remains a
+separate frontend and engine.
+
+Author source will run only in one fresh exact-pinned QuickJS/WASM runtime inside
+a disposable, sanitized Node child. The trusted parent will own exact-source
+approval, limits, scheduling, provider leaves, typed audit, cancellation, and
+process kill through bounded framed JSON. Scripts will receive no supported
+Node, filesystem, network, subprocess, environment, Pi, provider, workspace, or
+credential API. “Deterministic” means deterministic bookkeeping for the same
+source, arguments, runtime policy, leaf values, and ordered capability-settlement
+transcript; it does not promise timing-independent model output or formally
+prove the language. `node:vm`, worker threads, and Node permissions are not
+treated as malicious-code security boundaries.
+
+This portable posture is not a formally verified OS sandbox and will not claim
+hard cross-platform network denial or RSS isolation. Leaves will still have the
+authority of installed `pi-subagents`; source approval does not narrow worker
+capabilities or roll back their side effects. Interactive execution will require
+a one-run receipt bound to exact source, arguments, policy, and runtime identity;
+noninteractive modes fail closed initially. JavaScript remains foreground-only,
+with no replay, resume, detach, adoption, or daemon semantics. The complete
+threat model, API scope, TDD order, and stop gates are in [PLAN.md](PLAN.md).
 
 ## Workflow provenance and foreground audit
 
