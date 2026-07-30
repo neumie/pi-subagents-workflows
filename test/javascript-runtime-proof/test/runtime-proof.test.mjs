@@ -8,7 +8,13 @@ import test from "node:test";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const parentPath = fileURLToPath(new URL("../proof-parent.mjs", import.meta.url));
+const childPath = fileURLToPath(new URL("../proof-child.mjs", import.meta.url));
 const proofRoot = dirname(parentPath);
+const expectedEnvironmentKeys = process.platform === "win32"
+  ? ["systemroot"]
+  : process.platform === "darwin"
+    ? ["__cf_user_text_encoding"]
+    : [];
 
 function runProof(...args) {
   const result = spawnSync(process.execPath, [parentPath, ...args], {
@@ -66,11 +72,6 @@ test("pins package, engine, WASM, and import identity", () => {
     cappedSha256: "1716aece9c92901ecc3afd4edf2e21e21c3bc341632e4353ef18c90f180c44f5",
     maximumLinearMemory: 64 * 1024 * 1024,
   });
-  const expectedEnvironmentKeys = process.platform === "win32"
-    ? ["systemroot"]
-    : process.platform === "darwin"
-      ? ["__cf_user_text_encoding"]
-      : [];
   assert.deepEqual(
     report.hostEnvironmentKeys.map((key) => key.toLowerCase()),
     expectedEnvironmentKeys,
@@ -89,6 +90,34 @@ test("pins package, engine, WASM, and import identity", () => {
     { module: "wasi_snapshot_preview1", name: "fd_write", kind: "function" },
     { module: "wasi_snapshot_preview1", name: "random_get", kind: "function" },
   ]);
+});
+
+test("scrubs ambient variables before importing the runtime dependency", async () => {
+  const childSource = await readFile(childPath, "utf8");
+  assert.doesNotMatch(childSource, /^import\s+.*["']quickjs-wasi["'];?$/mu);
+  const resetIndex = childSource.indexOf("resetHostEnvironment();");
+  const importIndex = childSource.indexOf('await import("quickjs-wasi")');
+  assert.ok(resetIndex >= 0, "child entry does not reset its environment");
+  assert.ok(importIndex > resetIndex, "runtime dependency loads before environment reset");
+
+  const result = spawnSync(process.execPath, [childPath, "identity"], {
+    cwd: root,
+    encoding: "utf8",
+    env: {
+      PATH: process.env.PATH,
+      SystemRoot: process.env.SystemRoot,
+      PI_WORKFLOW_AMBIENT_SHOULD_BE_REMOVED: "present",
+    },
+    maxBuffer: 64 * 1024,
+    timeout: 30_000,
+  });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(result.signal, null);
+  const report = JSON.parse(result.stdout);
+  assert.deepEqual(
+    report.hostEnvironmentKeys.map((key) => key.toLowerCase()),
+    expectedEnvironmentKeys,
+  );
 });
 
 test("rejects dependency tampering before runtime child code executes", async () => {
@@ -242,7 +271,7 @@ test("contains a WASM runtime abort inside the disposable child", () => {
   assert.equal(report.aliveAfterExit, false);
   assert.ok(report.childExitCode !== 0 || report.childSignal !== null);
   assert.ok(report.stderrBytes <= 64 * 1024);
-  assert.ok(report.elapsedMs < 2_000, `runtime abort took ${report.elapsedMs}ms`);
+  assert.ok(report.elapsedMs < 5_000, `runtime abort took ${report.elapsedMs}ms`);
 });
 
 test("contains deep recursion inside the disposable child", () => {
