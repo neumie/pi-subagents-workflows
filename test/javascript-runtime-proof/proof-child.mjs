@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { Intrinsics, QuickJS } from "quickjs-wasi";
 import { capDefinedWasmMemory } from "./cap-wasm-memory.mjs";
 
 const mode = process.argv[2];
@@ -9,6 +8,21 @@ assert.ok(["identity", "globals", "concurrency", "bridge", "cpu", "oom", "abort"
 if (["cancel-silent", "cancel-flood"].includes(mode)) process.on("SIGTERM", () => {});
 if (mode === "cancel-exit") process.exit(0);
 
+function resetHostEnvironment() {
+  const systemRoot = process.platform === "win32" ? process.env.SystemRoot : undefined;
+  if (process.platform === "win32") {
+    assert.ok(systemRoot, "trusted SystemRoot is required on Windows");
+  }
+  for (const key of Object.keys(process.env)) delete process.env[key];
+  if (process.platform === "win32") {
+    process.env.SystemRoot = systemRoot;
+  } else if (process.platform === "darwin") {
+    process.env.__CF_USER_TEXT_ENCODING = "0x0:0:0";
+  }
+}
+
+resetHostEnvironment();
+const { Intrinsics, QuickJS } = await import("quickjs-wasi");
 const identity = JSON.parse(await readFile(new URL("./runtime-identity.json", import.meta.url), "utf8"));
 const wasm = await readFile(new URL(import.meta.resolve("quickjs-wasi/quickjs.wasm")));
 const sourceWasmSha256 = createHash("sha256").update(wasm).digest("hex");
