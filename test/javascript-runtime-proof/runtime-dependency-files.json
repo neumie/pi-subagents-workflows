@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "package": {
+    "name": "quickjs-wasi",
+    "version": "3.2.0"
+  },
+  "files": [
+    { "path": "README.md", "bytes": 31093, "sha256": "32fcde6e01e7e7bc4b6f3177a96487b4613ff3e1574216e54d1ebc0955d71c95" },
+    { "path": "dist/extensions.d.ts", "bytes": 5164, "sha256": "e5017edccc3535664ee6b890c96f428b468a6025c14f0fd2cc6094845398157e" },
+    { "path": "dist/extensions.d.ts.map", "bytes": 2036, "sha256": "83949d14632d3f763c8f580a0106ad261c1199e9655e4951fc64a1c3343e4b85" },
+    { "path": "dist/extensions.js", "bytes": 15720, "sha256": "9662299693f6ddd8d56d6e2f91b4bd2202e2cfebe06e834bf9a2b16fa15c4e08" },
+    { "path": "dist/extensions.js.map", "bytes": 11916, "sha256": "14d01bca3e08f6a43734b808a11bb8652455e5d433688dee1744e56c0d6c20e6" },
+    { "path": "dist/index.d.ts", "bytes": 41174, "sha256": "d5c04c67562daee87c3247b7736741ef02cb95e8bc191cd6c2424bf42d49a5c7" },
+    { "path": "dist/index.d.ts.map", "bytes": 16167, "sha256": "af151d7c4a14a7c1ffe41c12ca2e5360b8d8438a3c6ebc1b96bd1a8ba7f17b8c" },
+    { "path": "dist/index.js", "bytes": 90176, "sha256": "b89ebb05a519cddef13bca9f76d9a45e745af08987727710f0eaae09046c5062" },
+    { "path": "dist/index.js.map", "bytes": 66338, "sha256": "988c575fe39c9d797c5c75a4e4f7566f6d72a6ed8d1c7c55ec3aad8906ef0b8e" },
+    { "path": "dist/version.d.ts", "bytes": 77, "sha256": "ec2552fcb488f20a1e66d8da834979f1a62805dc066bb1c77d8cfb2c3f575a7f" },
+    { "path": "dist/version.d.ts.map", "bytes": 137, "sha256": "46ea570882aef0f1600f261a2ec101de075cf346a2f610ae76c74ec3a8050f84" },
+    { "path": "dist/version.js", "bytes": 131, "sha256": "7f0e15016118ea5cc43435f6efea90a9e1295a3d803c712d3e1517c764a2b352" },
+    { "path": "dist/version.js.map", "bytes": 158, "sha256": "ae1b8e97880771e406064f971eaa84901afab7923fe2d19109d3413ea824f1b0" },
+    { "path": "dist/wasi-shim.d.ts", "bytes": 2502, "sha256": "75e42326606a0983a70649e0b537546c2ec4b4e31b2ff4c02e0fa4e90997df56" },
+    { "path": "dist/wasi-shim.d.ts.map", "bytes": 612, "sha256": "dd3ddec7e6047c6fc3a8a6717510b4d66bb8115a9d5c8e95c9dad48653fd15c5" },
+    { "path": "dist/wasi-shim.js", "bytes": 4033, "sha256": "79af15cf5158d181d11021158abb22541fd6d35beca569652317859819960eac" },
+    { "path": "dist/wasi-shim.js.map", "bytes": 3277, "sha256": "0c24d6daf884794e5a91d0acbd816d6521a4bb5d8075a439421335c67d219c8c" },
+    { "path": "extensions/crypto/crypto.so", "bytes": 120228, "sha256": "fa26b6fafda251c3b1442dcc4c876b3ac73689639519f4ddfc2c410ebdb5b7c2" },
+    { "path": "extensions/encoding/encoding.so", "bytes": 7715, "sha256": "d501aa2a8410ee07c196103f0d169b226ec61c922883713510fd723fe14036c3" },
+    { "path": "extensions/headers/headers.so", "bytes": 8896, "sha256": "42c847104d6aa8d4666fa41bb74d324c2ee9a4d15c2492fca013b1631232b011" },
+    { "path": "extensions/structured-clone/structured-clone.so", "bytes": 6007, "sha256": "0ac5a36c0545c659ba6f9f8de5af11862df84546d151d0f15ec5184c95fd6cb3" },
+    { "path": "extensions/url/url.so", "bytes": 397332, "sha256": "af780a79f1fb131b5e6fa1d6fedc481e265420cf2f254fe966255230f4c1bc62" },
+    { "path": "package.json", "bytes": 2705, "sha256": "3e2e5caf88bea98756f235abac19214e1d728a38ccde32624f6ef6967c2a6130" },
+    { "path": "quickjs.wasm", "bytes": 612319, "sha256": "078199ef140ec06f18cf7382cca6a39cae638b2d49dca6bdfd139023abb71db4" }
+  ]
+}
