@@ -1,0 +1,49 @@
+name: Restricted JavaScript runtime proof
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - test/restricted-js-runtime-proof
+    paths:
+      - .github/workflows/restricted-js-runtime-proof.yml
+      - test/javascript-runtime-proof/**
+      - test/javascript-runtime-proof-status.md
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-proof:
+    name: Runtime proof (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: test/javascript-runtime-proof
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24.18.0
+          cache: npm
+          cache-dependency-path: test/javascript-runtime-proof/package-lock.json
+      - name: Report runtime
+        run: |
+          node --version
+          npm --version
+      - name: Install proof dependency
+        run: npm ci --ignore-scripts --no-audit --no-fund
+        env:
+          npm_config_before: ""
+          npm_config_min_release_age: "0"
+      - name: Run source correctness tests
+        run: npm test
+      - name: Run clean packed correctness tests
+        run: npm run test:packed

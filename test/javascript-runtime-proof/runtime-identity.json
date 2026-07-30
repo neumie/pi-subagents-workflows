@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "package": {
+    "name": "quickjs-wasi",
+    "version": "3.2.0",
+    "npmIntegrity": "sha512-+7ArUWrc1qCtFLjpNVGI47eGih4TKWg3RSB+FfPFtnfZrKlgvCGUUWbClDalFL7lzNAYH82jrPPHsh3LBkuk7g=="
+  },
+  "dependencyFileManifest": {
+    "path": "runtime-dependency-files.json",
+    "bytes": 3314,
+    "sha256": "96f2003a8840057195df2700c53e9e3362522fcc6fb6341400d5ca85f4dc0ec8",
+    "fileCount": 24
+  },
+  "engine": {
+    "name": "quickjs-ng",
+    "version": "0.15.1"
+  },
+  "wasm": {
+    "sourceBytes": 612319,
+    "sourceSha256": "078199ef140ec06f18cf7382cca6a39cae638b2d49dca6bdfd139023abb71db4",
+    "cappedBytes": 612321,
+    "cappedSha256": "1716aece9c92901ecc3afd4edf2e21e21c3bc341632e4353ef18c90f180c44f5",
+    "maximumLinearMemory": 67108864
+  },
+  "posture": {
+    "wrapperCommit": "eddbe6d0f16a999f973e015d8f497ee4e9fbf5d0",
+    "engineCommit": "fd0a0210b7be00957751871e7e01b8291268fc29",
+    "publishedAt": "2026-07-23T09:51:52.792Z",
+    "maintainers": [
+      "adamdong",
+      "tootallnate"
+    ],
+    "provenanceUrl": "https://registry.npmjs.org/-/npm/v1/attestations/quickjs-wasi@3.2.0",
+    "advisoryReviewAsOf": "2026-07-28",
+    "fixedAdvisories": [
+      "CVE-2026-0821",
+      "CVE-2026-0822",
+      "CVE-2026-1144",
+      "CVE-2026-1145",
+      "CVE-2026-37630",
+      "CVE-2026-3979"
+    ],
+    "noKnownApplicableHighCritical": true
+  }
+}

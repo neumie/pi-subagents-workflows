@@ -1,0 +1,20 @@
+{
+  "name": "pi-workflow-js-phase16-proof",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "files": [
+    "cap-wasm-memory.mjs",
+    "proof-child.mjs",
+    "proof-parent.mjs",
+    "runtime-dependency-files.json",
+    "runtime-identity.json"
+  ],
+  "dependencies": {
+    "quickjs-wasi": "3.2.0"
+  },
+  "scripts": {
+    "test": "node --test --test-concurrency=1 test/cap-wasm-memory.test.mjs test/packed-harness.test.mjs test/runtime-proof.test.mjs",
+    "test:packed": "node test-packed.mjs"
+  }
+}
