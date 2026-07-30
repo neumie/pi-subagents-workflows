@@ -4,8 +4,15 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - test/restricted-js-runtime-proof
+      - main
     paths:
+      - .gitattributes
+      - .github/workflows/restricted-js-runtime-proof.yml
+      - test/javascript-runtime-proof/**
+      - test/javascript-runtime-proof-status.md
+  pull_request:
+    paths:
+      - .gitattributes
       - .github/workflows/restricted-js-runtime-proof.yml
       - test/javascript-runtime-proof/**
       - test/javascript-runtime-proof-status.md
