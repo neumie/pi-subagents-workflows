@@ -1,6 +1,6 @@
 {
   "name": "pi-subagents-workflows",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Strict JSON workflow orchestration for pi-subagents and the Pi coding agent",
   "license": "MIT",
   "type": "module",
@@ -51,11 +51,11 @@
   },
   "dependencies": {
     "jiti": "2.7.0",
-    "pi-subagents": ">=0.36.0 <0.38.0",
+    "pi-subagents": ">=0.36.0 <0.39.0",
     "typebox": "1.1.38"
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": ">=0.81.0 <0.83.0"
+    "@earendil-works/pi-coding-agent": ">=0.81.0 <0.84.0"
   },
   "peerDependenciesMeta": {
     "@earendil-works/pi-coding-agent": {

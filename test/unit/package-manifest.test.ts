@@ -58,7 +58,7 @@ test("package manifest establishes the pi-subagents-workflows identity", () => {
 	const manifest = loadManifest();
 
 	assert.equal(manifest.name, "pi-subagents-workflows");
-	assert.equal(manifest.version, "0.1.0");
+	assert.equal(manifest.version, "0.1.1");
 	assert.equal(manifest.version, PACKAGE_VERSION);
 	assert.equal(
 		manifest.description,
@@ -127,12 +127,12 @@ test("supported host and provider ranges stay explicit", () => {
 
 	assert.deepEqual(manifest.dependencies, {
 		jiti: "2.7.0",
-		"pi-subagents": ">=0.36.0 <0.38.0",
+		"pi-subagents": ">=0.36.0 <0.39.0",
 		typebox: "1.1.38",
 	});
 	assert.deepEqual(manifest.optionalDependencies, undefined);
 	assert.deepEqual(manifest.peerDependencies, {
-		[hostPackage]: ">=0.81.0 <0.83.0",
+		[hostPackage]: ">=0.81.0 <0.84.0",
 	});
 	assert.deepEqual(manifest.peerDependenciesMeta, {
 		[hostPackage]: { optional: true },
