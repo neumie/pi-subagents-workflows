@@ -1,0 +1,3 @@
+test/javascript-runtime-proof/*.json text eol=lf
+test/javascript-runtime-proof/*.mjs text eol=lf
+test/javascript-runtime-proof/test/*.mjs text eol=lf
