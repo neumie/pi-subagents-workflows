@@ -42,7 +42,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        pi-version: ["0.81.0", "0.82.1"]
+        pi-version: ["0.81.0", "0.82.1", "0.83.0"]
         provider:
           - version: "0.36.0"
             sha256: fc6550f62eedf6d19fab2917ffda71d68929b31e3d7be24eb58acfdc44a23cc2
