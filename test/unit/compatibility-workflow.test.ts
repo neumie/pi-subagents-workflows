@@ -13,7 +13,7 @@ const ci = source(".github/workflows/ci.yml");
 const release = source(".github/workflows/release.yml");
 const providerE2e = source("test/provider-extension-e2e.test.mjs");
 
-const hostMatrix = 'pi-version: ["0.81.0", "0.82.1"]';
+const hostMatrix = 'pi-version: ["0.81.0", "0.82.1", "0.83.0"]';
 const operatingSystemMatrix = "os: [ubuntu-latest, windows-latest]";
 
 function assertProviderMatrix(workflow: string): void {
@@ -48,7 +48,10 @@ test("release provider gates preserve the complete compatibility matrix", () => 
 
 test("packed real-session fixtures require an explicit supported Pi host", () => {
 	assert.match(providerE2e, /process\.env\.PI_CODING_AGENT_VERSION/u);
-	assert.match(providerE2e, /new Set\(\["0\.81\.0", "0\.82\.1"\]\)/u);
+	assert.match(
+		providerE2e,
+		/new Set\(\["0\.81\.0", "0\.82\.1", "0\.83\.0"\]\)/u,
+	);
 	assert.match(providerE2e, /"@earendil-works\/pi-ai": piCodingAgentVersion/u);
 	assert.match(
 		providerE2e,

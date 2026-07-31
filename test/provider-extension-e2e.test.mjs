@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
 const repository = fileURLToPath(new URL("..", import.meta.url));
-const supportedPiVersions = new Set(["0.81.0", "0.82.1"]);
+const supportedPiVersions = new Set(["0.81.0", "0.82.1", "0.83.0"]);
 
 function run(command, args, options = {}) {
 	const result = spawnSync(command, args, {
