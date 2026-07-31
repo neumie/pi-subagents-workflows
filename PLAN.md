@@ -390,7 +390,7 @@ extension tests. Document foreground, active-context, current-authority, and
 non-durable limits.
 
 The provider minimum/current artifact and real-extension jobs across exact Pi
-0.81.0/0.82.1 host baselines, local and hosted Node 24 Ubuntu/Windows
+0.81.0/0.82.1/0.83.0 host baselines, local and hosted Node 24 Ubuntu/Windows
 unit/type/package gates, independent correctness/security reviews, and native
 static Windows ACL/reparse acceptance are green. The Windows public-seam test
 starts from broad inherited and
@@ -406,7 +406,7 @@ Commits:
 - `test(windows): complete native filesystem acceptance`
 
 Gate: unit, integration, and real extension E2E pass on Node 24 Ubuntu and
-Windows for Pi 0.81.0/0.82.1 and provider 0.36.0/0.37.0;
+Windows for Pi 0.81.0/0.82.1/0.83.0 and provider 0.36.0/0.37.0;
 `npm ci --ignore-scripts`, `npm pack --dry-run`, clean tarball install, every
 public export, and the complete host/provider matrix are green. The documented
 foreground gate is satisfied; publishing a `0.x` release remains a separate
@@ -997,8 +997,9 @@ the real Pi/provider extension.
 ### 27. Containment, compatibility, and release gate
 
 Add adversarial escape/DoS/cancellation/property stress and the full Node 24
-macOS/Ubuntu/Windows × Pi 0.81.0/0.82.1 × provider 0.36.0/0.37.0 packed matrix.
-Keep provider-free containment jobs separate from real-extension jobs. Record
+macOS/Ubuntu/Windows × Pi 0.81.0/0.82.1/0.83.0 × provider 0.36.0/0.37.0 packed
+matrix. Keep provider-free containment jobs separate from real-extension jobs.
+Record
 Node patch, OS image, package/variant/WASM digest, provider tarball digest,
 resolved limits, and exact results.
 
