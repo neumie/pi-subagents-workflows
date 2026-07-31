@@ -43,7 +43,8 @@ change public contracts with migration notes.
   duplicate JSON keys, exotic DTO values, oversized records, and ambiguous
   provider identities.
 - Apply and verify protected Windows audit DACLs limited to the current user,
-  `SYSTEM`, and local Administrators before writing audit data.
+  `SYSTEM`, and local Administrators before writing audit data, with a bounded
+  30-second PowerShell budget for slow Windows hosts.
 - Pin GitHub Actions and downloaded provider artifacts to reviewed immutable
   digests.
 
