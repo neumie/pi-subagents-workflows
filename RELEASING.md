@@ -22,10 +22,10 @@ requires an explicit release decision.
 - Preserve the documented foreground and Windows threat boundaries. A release
   does not silently widen authority, persistence, or reparse guarantees.
 
-## Prepare `0.1.0`
+## Prepare `0.1.1`
 
 1. Confirm the package name is still available on npm and that no Git tag or
-   GitHub release named `v0.1.0` exists.
+   GitHub release named `v0.1.1` exists.
 2. Rotate the previously exposed npm credential. Revoke the old credential;
    never paste either credential into a command, issue, log, or release note.
 3. Confirm the protected GitHub Actions environment named `npm-publish`
@@ -71,7 +71,7 @@ research intake, generated logs, or sibling dependencies.
 ## Publish the first release
 
 1. Merge the reviewed release commit to the default branch.
-2. Create and publish a GitHub release tagged exactly `v0.1.0` at that commit.
+2. Create and publish a GitHub release tagged exactly `v0.1.1` at that commit.
    Do not create the tag from an older branch head. The workflow must verify
    the immutable event SHA against both the tag and the default branch.
 3. The release workflow must rerun the complete supported host/provider matrix
@@ -98,7 +98,7 @@ research intake, generated logs, or sibling dependencies.
 
 After npm reports success:
 
-1. Verify `pi-subagents-workflows@0.1.0` metadata, integrity, provenance, public
+1. Verify `pi-subagents-workflows@0.1.1` metadata, integrity, provenance, public
    exports, and clean installation from the registry.
 2. Run one real Pi foreground workflow using the registry package and a
    supported published provider.

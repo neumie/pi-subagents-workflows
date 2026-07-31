@@ -19,9 +19,9 @@ Native Windows acceptance verifies exact audit
 DACLs and real file-link/junction rejection under the documented static threat
 model. The release gates are satisfied, but the package remains unpublished
 pending an explicit release decision; active ancestor mutation is excluded
-rather than claimed solved. Restricted JavaScript is the approved next-product
+rather than claimed solved. Restricted JavaScript remains a deferred product
 contract in [PLAN.md](PLAN.md), not an implemented or runnable feature in this
-checkout. See [CHANGELOG.md](CHANGELOG.md) for the `0.1.0`
+checkout. See [CHANGELOG.md](CHANGELOG.md) for the `0.1.1`
 release notes, [PLAN.md](PLAN.md) for the TDD contract, and the
 [repository release checklist](https://github.com/neumie/pi-subagents-workflows/blob/main/RELEASING.md)
 for the controlled first-publish process.
@@ -30,8 +30,8 @@ for the controlled first-publish process.
 
 The complete foreground implementation is merged to `main`. Historical
 research, scaffold, and provider feature branches are retained only for
-provenance. Delegation v2 shipped in `pi-subagents@0.36.0`; 0.37.0 remains the
-current supported provider release.
+provenance. Delegation v2 shipped in `pi-subagents@0.36.0`; the supported
+provider range is `>=0.36.0 <0.39.0`.
 
 The repository, canonical local directory, and npm package use the full name
 `pi-subagents-workflows`. The GitHub repository is
@@ -42,8 +42,8 @@ npm publication remains a separate explicit operation governed by
 ## Test a local checkout in Pi
 
 The supported host range is
-`@earendil-works/pi-coding-agent >=0.81.0 <0.83.0`; Node 24 or newer and an
-enabled `pi-subagents >=0.36.0 <0.38.0` extension are required. Install local
+`@earendil-works/pi-coding-agent >=0.81.0 <0.84.0`; Node 24 or newer and an
+enabled `pi-subagents >=0.36.0 <0.39.0` extension are required. Install local
 dependencies without lifecycle scripts, then either start a disposable Pi
 session or register the checkout persistently:
 
@@ -61,8 +61,9 @@ before enabling them.
 ## Selected decisions
 
 - **Definition languages:** strict JSON IR v1 is implemented and remains inert
-  and compatible. A separate approval-gated restricted-JavaScript engine is
-  planned but not yet implemented.
+  and compatible. The separate approval-gated restricted-JavaScript engine is
+  deferred because Phase 16 found no runtime candidate that passed every
+  dependency, licensing, containment, and concurrent-settlement gate.
 - **Delivery:** phased full foreground build—IR,
   sequential/parallel/pipeline engine, provider adapter, and Pi
   tool/command—rather than a v1 spike release.
@@ -76,13 +77,19 @@ before enabling them.
 - **Identity:** full repository and package rename from `pi-workflows` to
   `pi-subagents-workflows`.
 
-## Planned restricted JavaScript engine
+## Deferred restricted JavaScript engine
 
-The selected next increment is actual entropy-controlled JavaScript control
-flow, not a syntax-only lowering into IR v1. It is designed for bounded loops,
+The planned second engine is actual entropy-controlled JavaScript control flow,
+not a syntax-only lowering into IR v1. It is designed for bounded loops,
 reducers, aggregate returns, and output-driven fan-out through `agent()`,
 `parallel()`, `pipeline()`, `phase()`, and `log()`. JSON IR v1 remains a
 separate frontend and engine.
+
+Phase 16 completed on 2026-07-31 with no accepted runtime candidate, so no
+production dependency or JavaScript route has been added and later JavaScript
+phases remain blocked. The exact candidate dispositions and reopening criteria
+are recorded in the
+[Phase 16 runtime dependency disposition](research/restricted-javascript-phase16.md).
 
 Author source will run only in one fresh exact-pinned QuickJS/WASM runtime inside
 a disposable, sanitized Node child. The trusted parent will own exact-source
@@ -195,7 +202,7 @@ runtime, requires protocol version 2, defaults to fresh context, and leaves
 model, thinking, skill, artifact, and other authority policy to the installed
 provider. Each adapter returns a `leafRunner` for `executeWorkflow` and an
 idempotent `dispose()` method. The package pins the supported runtime range
-`pi-subagents >=0.36.0 <0.38.0`; malformed or incompatible public v2 exports
+`pi-subagents >=0.36.0 <0.39.0`; malformed or incompatible public v2 exports
 reject with `PiSubagentsV2UnavailableError`. There is no delegation-v1
 fallback.
 

@@ -312,9 +312,9 @@ compatibility, hard-zero request projection, and the published
 cross-extension E2E required by Phase 14. The runtime rejects unsupported
 providers rather than downgrading.
 
-Delegation v2 shipped in `pi-subagents@0.36.0` and remains supported in 0.37.0.
-The consumer now pins the normal runtime dependency range
-`>=0.36.0 <0.38.0`; CI verifies reviewed registry tarballs for both endpoints.
+Delegation v2 shipped in `pi-subagents@0.36.0`. The consumer pins the normal
+runtime dependency range `>=0.36.0 <0.39.0`; the retained provider artifact and
+real-session matrix verifies reviewed 0.36.0 and 0.37.0 registry releases.
 
 Commit: `763b6b7 feat(adapter): run workflow leaves through delegation v2`
 
@@ -539,12 +539,15 @@ untrusted. The design has four zones:
    under installed provider authority. They never share objects, credentials,
    or event-bus access with the script child.
 
-The candidate runtime is exact-pinned `quickjs-emscripten@0.32.0` with one
-selected synchronous QuickJS-NG WASM variant and a recorded SHA-256. It is a
-candidate, not an accepted production dependency, until the containment gate
-passes. The runtime uses host-created deferred QuickJS promises and explicit
-pending-job pumping so multiple `agent()` calls can remain outstanding; it must
-not use an Asyncify design that serializes the whole module.
+Phase 15 originally selected exact-pinned `quickjs-emscripten@0.32.0` with one
+synchronous QuickJS-NG WASM variant for Phase 16 evaluation. The completed
+Phase 16 review rejected that engine and the bounded, dated alternative set it
+screened; there is no accepted production candidate as of 2026-07-31. A future
+candidate must still use host-created deferred QuickJS promises and explicit
+pending-job pumping so multiple `agent()` calls can remain outstanding. It must
+not use an Asyncify design that serializes the whole module. See
+[`research/restricted-javascript-phase16.md`](research/restricted-javascript-phase16.md)
+for the exact dispositions and reopening criteria.
 
 One fresh Node 24 child is spawned with `shell:false`, dedicated stdio, an empty
 run cwd, an allowlisted environment, and Node permissions granting only the
@@ -840,6 +843,19 @@ install. Any applicable unresolved high/critical advisory, install-time native
 build/script, serialized async bridge, parent crash/hang, unbounded growth, or
 unreliable teardown stops the feature. Do not fall back to `node:vm`, a worker,
 in-process QuickJS, or unrestricted Node execution.
+
+**Disposition (2026-07-31): complete — rejected, no accepted candidate.** The
+merged `quickjs-wasi@3.2.0` fixture remains valid functional, packaging,
+lifecycle, and three-OS evidence, but its exact QuickJS-NG engine lacks later
+memory-safety fixes, its package omits standalone license/notice files required
+by project adoption policy, and the fixture does not exercise the final
+empty-cwd/Node-permission launch posture.
+The original `quickjs-emscripten@0.32.0` candidates use stale engines with
+separate memory-safety or OOM/disposal blockers. The reproducibly built
+`quickjs-wasm@0.0.5` near-candidate failed independent concurrent promise
+settlement in three fresh Node 24 runs. No production dependency or JavaScript
+route is approved, and Phase 17 remains blocked until a future exact candidate
+satisfies the reopening criteria in the Phase 16 disposition record.
 
 ### 17. Shared leaf coordinator extraction
 
