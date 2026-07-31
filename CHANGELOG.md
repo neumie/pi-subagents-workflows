@@ -20,7 +20,8 @@ change public contracts with migration notes.
 - Strict definition provenance and bounded, inspection-only foreground audit
   records with immutable publication and incomplete-run reporting.
 - Packed-package and real Pi/provider-extension acceptance for
-  `pi-subagents` 0.36.0 and 0.37.0 on Node 24 Ubuntu and Windows.
+  `pi-subagents` 0.36.0 and 0.37.0 across Pi 0.81.0, 0.82.1, and 0.83.0 on
+  Node 24 Ubuntu and Windows.
 
 ### Restricted JavaScript
 
@@ -50,7 +51,7 @@ change public contracts with migration notes.
 
 - Requires Node.js 24 or newer and Pi
   `@earendil-works/pi-coding-agent >=0.81.0 <0.84.0`; packed real-session
-  compatibility is verified at 0.81.0 and 0.82.1.
+  compatibility is verified at 0.81.0, 0.82.1, and 0.83.0.
 - Ships raw TypeScript package exports that Pi and consumers load through Jiti.
 - Runs only in the foreground. Audit files are inspection records, not replay,
   resume, adoption, daemon, cache, or exactly-once state.

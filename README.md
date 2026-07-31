@@ -12,8 +12,8 @@ foreground service, bounded renderer, `pi_workflow` model tool, and
 `/pi-workflow` command are implemented.** Focused and provider-free unit gates
 are green, and the adapter is artifact-tested against the supported published
 `pi-subagents` 0.36.0 and 0.37.0 releases. Packed real-Pi sessions also pass
-through the actual provider extension for both releases on Pi 0.81.0 and
-0.82.1. Local and hosted Node 24 Ubuntu/Windows unit, type, package,
+through the actual provider extension for both releases on Pi 0.81.0, 0.82.1,
+and 0.83.0. Local and hosted Node 24 Ubuntu/Windows unit, type, package,
 provider-matrix, correctness-review, and security-review gates are green.
 Native Windows acceptance verifies exact audit
 DACLs and real file-link/junction rejection under the documented static threat
@@ -234,8 +234,8 @@ Delegation v2 is published in `pi-subagents@0.36.0` and remains supported in
 
 CI downloads the immutable 0.36.0 and 0.37.0 registry tarballs, verifies their
 reviewed SHA-256 digests, and runs the packed real-session matrix against both
-providers on Pi 0.81.0 and 0.82.1 under Ubuntu and Windows. The `pi-subagents`
-extension must still be enabled in Pi: installing this
+providers on Pi 0.81.0, 0.82.1, and 0.83.0 under Ubuntu and Windows. The
+`pi-subagents` extension must still be enabled in Pi: installing this
 package provides the protocol dependency but does not silently activate the
 provider extension or widen child authority.
 
@@ -414,26 +414,26 @@ this gate against SHA-256-pinned 0.36.0 and 0.37.0 registry tarballs.
 The companion real-extension gate uses the same tarball variables:
 
 ```sh
-PI_CODING_AGENT_VERSION=0.82.1 \
+PI_CODING_AGENT_VERSION=0.83.0 \
 PI_SUBAGENTS_TARBALL=/path/to/pi-subagents.tgz \
 PI_SUBAGENTS_TARBALL_SHA256=<optional-reviewed-sha256> \
 npm run test:provider-extension-e2e
 ```
 
-The host version must be one of the exact compatibility baselines, 0.81.0 or
-0.82.1. The gate loads the packed manifest-declared Workflow and provider
-extensions into a real Pi session, dispatches one leaf through the real
-delegation handler to a
+The host version must be one of the exact compatibility baselines: 0.81.0,
+0.82.1, or 0.83.0. The gate loads the packed manifest-declared Workflow and
+provider extensions into a real Pi session, dispatches one leaf through the
+real delegation handler to a
 test-owned faux-provider child process, and verifies exact result delivery,
 branch pointers, terminal audit state, and shutdown. It makes no network model
-calls. This gate is green across both supported host baselines and both
+calls. This gate is green across all three supported host baselines and both
 supported provider releases.
 
 ## Research
 
 - [Research and evidence index](research/README.md)
 - [Exact-checkout `pi-subagents` comparison][comparison]
-- [Claude Code Dynamic Workflows synthesis](research/claude-code-workflows.md)
+- [Claude Code Dynamic Workflows synthesis](https://github.com/neumie/pi-subagents-workflows/blob/main/research/claude-code-workflows.md)
 - [Build contract](PLAN.md)
 
 [comparison]: research/pi-subagents-comparison.md
