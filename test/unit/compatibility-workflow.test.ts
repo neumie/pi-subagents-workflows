@@ -29,6 +29,13 @@ function assertProviderMatrix(workflow: string): void {
 	);
 }
 
+test("CI runs feature branches through pull requests and pushes only main", () => {
+	assert.match(
+		ci,
+		/on:\n {2}push:\n {4}branches: \[main\]\n {2}pull_request:\n\npermissions:/u,
+	);
+});
+
 test("CI covers every supported Pi host and provider on Ubuntu and Windows", () => {
 	assert.ok(ci.includes(operatingSystemMatrix));
 	assert.ok(ci.includes(hostMatrix));
