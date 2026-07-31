@@ -29,6 +29,10 @@ change public contracts with migration notes.
 - Complete Phase 16 with no accepted runtime candidate; production JavaScript
   dependencies, exports, and Pi routes remain deferred until a future exact
   candidate passes the documented reopening gates.
+- Record the rejected custom Bellard QuickJS 2026-06-04 reproduction: local
+  fixed-memory, byte-reproducible-build, clean non-OOM teardown, and concurrent
+  deferred-promise seams passed, but persistent-object OOM aborted checked
+  runtime teardown.
 
 ### Security
 

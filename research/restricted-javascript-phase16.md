@@ -4,7 +4,7 @@
 
 **Status:** **COMPLETE — REJECTED (no accepted runtime candidate)**
 
-Phase 16 evaluated the exact QuickJS/WASM families and bounded published-package set enumerated in this record and the dated [expanded candidate screen](restricted-javascript-candidate-screen.md). The investigation is complete for that reviewed set, but the gate did not pass: no reviewed artifact satisfied dependency provenance, licensing policy, memory-safety posture, concurrent deferred-promise behavior, final child launch posture, and clean packed cross-platform acceptance together.
+Phase 16 evaluated the exact QuickJS/WASM families and bounded published-package set enumerated in this record and the dated [expanded candidate screen](restricted-javascript-candidate-screen.md). A later supplemental investigation also rebuilt the synchronous `quickjs-emscripten@0.32.0` wrapper against exact Bellard QuickJS 2026-06-04 with fixed imported memory; that [custom candidate](restricted-javascript-bellard-2026-custom-reproduction.md) passed local builder identity, fixed-memory, clean non-OOM teardown, and concurrent-promise seams but reproduced the persistent-object OOM teardown abort from wrapper issue #257. The gate therefore remains rejected: no reviewed artifact satisfied dependency provenance, licensing policy, memory-safety posture, concurrent deferred-promise behavior, final child launch posture, and clean packed cross-platform acceptance together.
 
 This decision preserves strict JSON IR v1 and the existing foreground product. It adds no production runtime dependency, JavaScript export, Pi route, or provider authority.
 
@@ -22,13 +22,13 @@ This record uses the repository's canonical labels:
 
 | Phase 16 requirement | Result | Evidence |
 | --- | --- | --- |
-| Exact package, engine, WASM, imports, and installed-file identity | Partial | `quickjs-wasi@3.2.0` was fully pinned and whole-package verified; other candidates did not all provide equivalent published provenance. |
-| No install-time native build or lifecycle authority | Pass for the merged alternative proof | `quickjs-wasi@3.2.0` has no runtime dependencies or install lifecycle hooks. |
-| Multiple host-created promises settle independently with explicit job pumping | Candidate-specific | `quickjs-wasi@3.2.0` passed. `quickjs-wasm@0.0.5`, the closest newer technical near-survivor in the reviewed set, failed deterministically. |
-| Infinite loop, recursion, OOM, abort, cancellation, output, and teardown isolation | Pass for the merged alternative proof | The Node 24 source and clean-packed suites passed on Ubuntu, macOS, and Windows. |
-| Exact final child posture: empty cwd and narrow Node read permissions | Fail | The merged proof launches plain Node from the fixture root and does not exercise the final permission allowlist. |
-| Applicable advisory and memory-safety review | Fail | Each primary incumbent engine was missing relevant fixes or retained an unresolved report under the fail-closed policy. |
-| Complete license and third-party notices | Fail | The two strongest alternative npm payloads omit standalone license/notice files; project policy rejects adoption until exact redistribution evidence is bundled and reviewed. |
+| Exact package, engine, WASM, imports, and installed-file identity | Partial | `quickjs-wasi@3.2.0` was fully pinned and whole-package verified. The custom Bellard build pinned source, patches, toolchain, and byte-reproducible outputs, but remained unpublished and did not reach packed whole-package acceptance. |
+| No install-time native build or lifecycle authority | Pass for the merged alternative proof | `quickjs-wasi@3.2.0` has no runtime dependencies or install lifecycle hooks. The custom candidate was a local build, not an adoptable published runtime package. |
+| Multiple host-created promises settle independently with explicit job pumping | Candidate-specific | `quickjs-wasi@3.2.0` and the custom Bellard build passed. `quickjs-wasm@0.0.5` failed deterministically. |
+| Infinite loop, recursion, OOM, abort, cancellation, output, and teardown isolation | Candidate-specific failure | The merged `quickjs-wasi` proof passed its source and clean-packed three-OS suites. The custom Bellard build interrupted CPU and contained recursion but aborted `JS_FreeRuntime` after persistent-object OOM. |
+| Exact final child posture: empty cwd and narrow Node read permissions | Fail | The custom candidate passed a local permissioned identity child, but its fail-fast OOM stop occurred before clean-packed three-OS launch acceptance. The merged fixture still launches plain Node from its root. |
+| Applicable advisory and memory-safety review | Fail | The custom source review found Worker issue #527 unreachable through the exposed embedding, but its OOM defect and additional unresolved low-memory/Wasm32 reports prevented closure. Other incumbent engines were missing relevant fixes or retained unresolved reports. |
+| Complete license and third-party notices | Fail | The custom output required wrapper, Bellard, complete Emscripten, and musl notices; its disposable bundle omitted musl. The two strongest published alternatives also omitted required standalone evidence. |
 | One exact candidate passes every gate | **Fail** | No candidate survived all stop rules. |
 
 ## Candidate dispositions
@@ -63,6 +63,19 @@ This record uses the repository's canonical labels:
 - **Official-doc:** upstream PR [#266](https://github.com/justjake/quickjs-emscripten/pull/266) updates Bellard QuickJS and allocator behavior, but remained unmerged and unpublished.
 - **Proposed Pi policy:** an unreleased custom build is a new candidate requiring its own complete provenance and Phase 16 proof; it does not rehabilitate `0.32.0`.
 
+### Custom synchronous wrapper / Bellard QuickJS `2026-06-04`
+
+**Disposition: rejected after fail-fast OOM teardown failure.**
+
+- **Inspected-source:** the [supplemental reproduction](restricted-javascript-bellard-2026-custom-reproduction.md) used wrapper commit `df4efb9ef2cb25c417ecb57986da462d11b244ed`, official engine archive SHA-256 `b376e839b322978313d929fd20663b11ba58b75df5a46c126dd19ea2fa70ad2a`, and Emscripten 5.0.1 image digest `sha256:c89732ef63a56de5a96395c5a8c1c7904f7420131a045406e6fedc4cbe1cc198`.
+- **Disk-observed:** a from-clean rebuild reproduced the 510,631-byte WASM (`7d14ac942d7cf027bc71036635e54bea87517dcc0732bd4cab170e8e0e8b886a`) and 9,932-byte MJS (`81aa1c36e7a7431fdd7401f1d5002cd21fb48790221576574b4861ec1e5313cc`) byte-for-byte.
+- **Disk-observed:** the WASM required one unshared fixed 64 MiB imported memory, rejected smaller/larger/shared memories, reported release-sync without Asyncify, and could not grow. The focused Node 24 suite passed clean runtime/context teardown and reverse-settled concurrent host promises.
+- **Disk-observed:** the minimized OOM matrix isolated the stop condition. Persistent objects without OOM and transient single-allocation OOM both disposed cleanly; persistent-object OOM emitted `Aborted(OOM)` and then `JS_FreeRuntime` asserted that `rt->gc_obj_list` was not empty.
+- **Official-doc:** this reproduces open wrapper issue [#257](https://github.com/justjake/quickjs-emscripten/issues/257) even after applying the relevant ownership and allocator changes from PR [#266](https://github.com/justjake/quickjs-emscripten/pull/266).
+- **Inspected-source:** the reviewed wrapper did not register native `os`, expose its Worker constructor, or build with pthread/shared memory; binary-level closure and additional low-memory/Wasm32 issue dispositions were not completed after the earlier stop. **Inference:** Worker issue [#527](https://github.com/bellard/quickjs/issues/527) was not reachable through that reviewed embedding, not proven absent from all binary code.
+- **Inspected-source:** the generated output incorporated wrapper, Bellard, Emscripten, and musl components, while the disposable bundle omitted musl and never reached packed acceptance. **Proposed Pi policy:** a distributable candidate must preserve the reviewed complete notices for those components.
+- **Proposed Pi policy:** reject and retain documentation only. The local unpublished artifact independently fails the release-age/published-package gate and must not enter production manifests or fixtures.
+
 ### `quickjs-wasm@0.0.5` / Bellard QuickJS `2026-06-04`
 
 **Disposition: rejected; closest technical near-survivor.**
@@ -94,6 +107,7 @@ The dated [expanded candidate screen](restricted-javascript-candidate-screen.md)
 3. **Proposed Pi policy:** the merged `quickjs-wasi` fixture stays in `test/` as reproducible functional evidence and must not be imported, exported, or depended upon by production code.
 4. **Proposed Pi policy:** the stale `noKnownApplicableHighCritical: true` proof assertion is removed. Historical reviewed CVEs remain recorded, but the candidate's Phase 16 disposition is explicitly rejected.
 5. **Proposed Pi policy:** private repository status does not waive dependency, engine, or eventual redistribution gates.
+6. **Proposed Pi policy:** the supplemental custom Bellard build is negative evidence only. Its builder and concurrency successes do not override the earlier persistent-object OOM teardown stop.
 
 ## Reopening criteria
 
@@ -121,4 +135,5 @@ Until then, strict JSON IR v1 remains the only executable workflow language.
 - [quickjs-wasm 0.0.5 source tag](https://github.com/petersalomonsen/quickjs-rust-near/tree/quickjs-wasm-v0.0.5)
 - [Expanded dated candidate screen](restricted-javascript-candidate-screen.md)
 - [`quickjs-wasm@0.0.5` reproduction](restricted-javascript-quickjs-wasm-reproduction.md)
+- [Custom Bellard QuickJS 2026-06-04 reproduction](restricted-javascript-bellard-2026-custom-reproduction.md)
 - [Post-merge three-OS proof](https://github.com/neumie/pi-subagents-workflows/actions/runs/30556164748)

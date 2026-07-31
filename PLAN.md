@@ -542,10 +542,13 @@ untrusted. The design has four zones:
 Phase 15 originally selected exact-pinned `quickjs-emscripten@0.32.0` with one
 synchronous QuickJS-NG WASM variant for Phase 16 evaluation. The completed
 Phase 16 review rejected that engine and the bounded, dated alternative set it
-screened; there is no accepted production candidate as of 2026-07-31. A future
-candidate must still use host-created deferred QuickJS promises and explicit
-pending-job pumping so multiple `agent()` calls can remain outstanding. It must
-not use an Asyncify design that serializes the whole module. See
+screened. A supplemental custom build against Bellard QuickJS 2026-06-04 later
+passed fixed-memory and concurrent-promise seams but reproduced the persistent-
+object OOM teardown abort from wrapper issue #257. There is no accepted
+production candidate as of 2026-07-31. A future candidate must still use
+host-created deferred QuickJS promises and explicit pending-job pumping so
+multiple `agent()` calls can remain outstanding. It must not use an Asyncify
+design that serializes the whole module. See
 [`research/restricted-javascript-phase16.md`](research/restricted-javascript-phase16.md)
 for the exact dispositions and reopening criteria.
 
@@ -853,7 +856,11 @@ empty-cwd/Node-permission launch posture.
 The original `quickjs-emscripten@0.32.0` candidates use stale engines with
 separate memory-safety or OOM/disposal blockers. The reproducibly built
 `quickjs-wasm@0.0.5` near-candidate failed independent concurrent promise
-settlement in three fresh Node 24 runs. No production dependency or JavaScript
+settlement in three fresh Node 24 runs. The later custom synchronous wrapper
+against exact Bellard QuickJS 2026-06-04 produced byte-reproducible fixed-memory
+artifacts and correctly settled overlapping deferred promises, but persistent-
+object OOM still aborted `JS_FreeRuntime` after the PR #266 allocator changes;
+its notice bundle also omitted musl. No production dependency or JavaScript
 route is approved, and Phase 17 remains blocked until a future exact candidate
 satisfies the reopening criteria in the Phase 16 disposition record.
 

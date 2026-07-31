@@ -23,12 +23,14 @@ completed with no runtime candidate accepted. See the
   — exact dependency, engine, WASM, licensing, advisory, concurrency, and
   containment evidence; current rejection and reopening criteria. Its
   supporting records retain the
-  [expanded candidate screen](restricted-javascript-candidate-screen.md) and
-  [`quickjs-wasm` reproduction](restricted-javascript-quickjs-wasm-reproduction.md).
+  [expanded candidate screen](restricted-javascript-candidate-screen.md),
+  [`quickjs-wasm` reproduction](restricted-javascript-quickjs-wasm-reproduction.md),
+  and rejected
+  [custom Bellard 2026-06-04 reproduction](restricted-javascript-bellard-2026-custom-reproduction.md).
 - **[Claude Dynamic Workflows and `pi-subagents`: exact-checkout comparison](pi-subagents-comparison.md)**
   — implementation-boundary comparison, reuse matrix, contribution map,
   observed test baseline, authority profiles, staged sequence, and release gates.
-- **[Claude Code Dynamic Workflows: Reverse-Engineered Architecture and Pi Port Implications](./claude-code-workflows.md)**
+- **[Claude Code Dynamic Workflows: Reverse-Engineered Architecture and Pi Port Implications](claude-code-workflows.md)**
   — authoritative Claude synthesis, including runtime semantics, UX,
   persistence, security, Pi feasibility, roadmap, unresolved questions, and the
   pre-implementation decision checklist.
