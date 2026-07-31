@@ -4,7 +4,7 @@ All notable changes to `pi-subagents-workflows` are documented here. This
 project follows Semantic Versioning while it is pre-1.0; minor releases may
 change public contracts with migration notes.
 
-## [0.1.0] - Unreleased
+## [0.1.1] - Unreleased
 
 ### Added
 
@@ -12,7 +12,7 @@ change public contracts with migration notes.
   limits, templates, references, outputs, and result selection.
 - Deterministic sequential, barriered-parallel, and item-local pipeline
   execution with workflow-wide fair concurrency and source-ordered outcomes.
-- A public delegation-v2 adapter for `pi-subagents >=0.36.0 <0.38.0`, including
+- A public delegation-v2 adapter for `pi-subagents >=0.36.0 <0.39.0`, including
   exact request correlation, cancellation, progress backpressure, structured
   output, typed failures, and fail-closed bus poisoning.
 - The foreground `pi_workflow` model tool and `/pi-workflow` user command for
@@ -21,6 +21,14 @@ change public contracts with migration notes.
   records with immutable publication and incomplete-run reporting.
 - Packed-package and real Pi/provider-extension acceptance for
   `pi-subagents` 0.36.0 and 0.37.0 on Node 24 Ubuntu and Windows.
+
+### Restricted JavaScript
+
+- Preserve a non-production, three-OS `quickjs-wasi@3.2.0` runtime proof under
+  `test/` as functional and lifecycle evidence only.
+- Complete Phase 16 with no accepted runtime candidate; production JavaScript
+  dependencies, exports, and Pi routes remain deferred until a future exact
+  candidate passes the documented reopening gates.
 
 ### Security
 
@@ -37,7 +45,7 @@ change public contracts with migration notes.
 ### Compatibility and limits
 
 - Requires Node.js 24 or newer and Pi
-  `@earendil-works/pi-coding-agent >=0.81.0 <0.83.0`; packed real-session
+  `@earendil-works/pi-coding-agent >=0.81.0 <0.84.0`; packed real-session
   compatibility is verified at 0.81.0 and 0.82.1.
 - Ships raw TypeScript package exports that Pi and consumers load through Jiti.
 - Runs only in the foreground. Audit files are inspection records, not replay,
@@ -48,4 +56,4 @@ change public contracts with migration notes.
   `SystemRoot`. Path checks are static/observable and pathname-based, not
   handle-pinned against an active principal mutating ancestors.
 
-[0.1.0]: https://github.com/neumie/pi-subagents-workflows/releases/tag/v0.1.0
+[0.1.1]: https://github.com/neumie/pi-subagents-workflows/releases/tag/v0.1.1

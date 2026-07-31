@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "package": {
     "name": "quickjs-wasi",
     "version": "3.2.0",
@@ -31,8 +31,7 @@
       "tootallnate"
     ],
     "provenanceUrl": "https://registry.npmjs.org/-/npm/v1/attestations/quickjs-wasi@3.2.0",
-    "advisoryReviewAsOf": "2026-07-28",
-    "fixedAdvisories": [
+    "reviewedFixedAdvisories": [
       "CVE-2026-0821",
       "CVE-2026-0822",
       "CVE-2026-1144",
@@ -40,6 +39,17 @@
       "CVE-2026-37630",
       "CVE-2026-3979"
     ],
-    "noKnownApplicableHighCritical": true
+    "licenseNoticeFilesPresent": false,
+    "phase16Decision": {
+      "asOf": "2026-07-31",
+      "disposition": "rejected",
+      "accepted": false,
+      "reasonCodes": [
+        "post-release-memory-safety-fixes-missing",
+        "unresolved-upstream-memory-safety-report",
+        "license-notice-files-missing",
+        "final-launch-posture-not-proven"
+      ]
+    }
   }
 }
