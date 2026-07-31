@@ -87,8 +87,12 @@ separate frontend and engine.
 
 Phase 16 completed on 2026-07-31 with no accepted runtime candidate, so no
 production dependency or JavaScript route has been added and later JavaScript
-phases remain blocked. The exact candidate dispositions and reopening criteria
-are recorded in the
+phases remain blocked. A later
+[custom Bellard 2026-06-04 reproduction](research/restricted-javascript-bellard-2026-custom-reproduction.md)
+passed local fixed-memory, clean non-OOM teardown, and concurrent-promise
+seams but was rejected when persistent-object OOM aborted runtime teardown. The
+exact candidate
+dispositions and reopening criteria are recorded in the
 [Phase 16 runtime dependency disposition](research/restricted-javascript-phase16.md).
 
 Author source will run only in one fresh exact-pinned QuickJS/WASM runtime inside
