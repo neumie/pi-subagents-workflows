@@ -65,3 +65,17 @@ test("packed real-session fixtures require an explicit supported Pi host", () =>
 		/"@earendil-works\/pi-coding-agent": piCodingAgentVersion/u,
 	);
 });
+
+test("packed fixture bounds slow Windows installs at fifteen minutes", () => {
+	assert.match(
+		providerE2e,
+		/const fixtureInstallTimeoutMs =\n\s+process\.platform === "win32" \? 900_000 : 600_000;/u,
+	);
+	const installStart = providerE2e.indexOf('\n\t\t\t\t"install",');
+	assert.notEqual(installStart, -1);
+	const installEnd = providerE2e.indexOf("\n\t\t);", installStart);
+	assert.notEqual(installEnd, -1);
+	const installCall = providerE2e.slice(installStart, installEnd);
+	assert.match(installCall, /timeout: fixtureInstallTimeoutMs/u);
+	assert.match(installCall, /includeOutputOnFailure: true/u);
+});

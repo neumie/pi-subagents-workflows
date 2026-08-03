@@ -28,6 +28,10 @@ change public contracts with migration notes.
 - Accept the optional lowercase SHA-256 `launchContractDigest` emitted by newer
   delegation-v2 providers while preserving fail-closed rejection of malformed
   metadata and every other unknown terminal field.
+- Give only the disposable Windows real-session fixture a bounded 15-minute
+  clean-install budget and preserve complete install-subprocess diagnostics on
+  failure; other hosts retain the 10-minute bound and no fixture retries are
+  added.
 
 ### Restricted JavaScript
 
