@@ -17,18 +17,22 @@ import { test } from "node:test";
 
 const repository = fileURLToPath(new URL("..", import.meta.url));
 const supportedPiVersions = new Set(["0.81.0", "0.82.1", "0.83.0"]);
+const fixtureInstallTimeoutMs =
+	process.platform === "win32" ? 900_000 : 600_000;
 
 function run(command, args, options = {}) {
+	const { includeOutputOnFailure = false, ...spawnOptions } = options;
 	const result = spawnSync(command, args, {
 		encoding: "utf8",
 		timeout: 120_000,
-		...options,
+		...spawnOptions,
 	});
-	assert.equal(
-		result.status,
-		0,
-		result.error?.stack || result.stderr || result.stdout,
-	);
+	const diagnostics = includeOutputOnFailure
+		? [result.error?.stack, result.stderr, result.stdout]
+				.filter((value) => typeof value === "string" && value.length > 0)
+				.join("\n")
+		: result.error?.stack || result.stderr || result.stdout;
+	assert.equal(result.status, 0, diagnostics);
 	return result.stdout;
 }
 
@@ -38,6 +42,31 @@ function runNpm(args, options = {}) {
 		? run(process.platform === "win32" ? "npm.cmd" : "npm", args, options)
 		: run(process.execPath, [npmCli, ...args], options);
 }
+
+test("complete child failure diagnostics are opt-in", () => {
+	const failureScript =
+		'process.stdout.write("stdout-marker"); process.stderr.write("stderr-marker"); process.exitCode = 7';
+	const captureFailure = (callback) => {
+		try {
+			callback();
+		} catch (error) {
+			return String(error);
+		}
+		assert.fail("expected child failure");
+	};
+	const legacyError = captureFailure(() =>
+		run(process.execPath, ["--eval", failureScript]),
+	);
+	assert.match(legacyError, /stderr-marker/u);
+	assert.doesNotMatch(legacyError, /stdout-marker/u);
+
+	const completeError = captureFailure(() =>
+		run(process.execPath, ["--eval", failureScript], {
+			includeOutputOnFailure: true,
+		}),
+	);
+	assert.match(completeError, /stderr-marker[\s\S]*stdout-marker/u);
+});
 
 function manifestExtension(fixture, packageName) {
 	const packageRoot = realpathSync(join(fixture, "node_modules", packageName));
@@ -133,7 +162,11 @@ test("packed extension executes through the real published provider in a real Pi
 				"--no-audit",
 				"--no-fund",
 			],
-			{ cwd: fixture, timeout: 600_000 },
+			{
+				cwd: fixture,
+				timeout: fixtureInstallTimeoutMs,
+				includeOutputOnFailure: true,
+			},
 		);
 
 		const runner = join(fixture, "workflow-provider-runner.mjs");
