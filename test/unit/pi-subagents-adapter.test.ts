@@ -96,7 +96,7 @@ function responseFor(
 	};
 }
 
-test("projects an exact V2 request including hard zero and preserves literal JSON text", async () => {
+test("projects an exact V2 request and accepts a launch contract digest", async () => {
 	const bus = new FakeBus();
 	const adapter = createPiSubagentsLeafAdapterCore(
 		{ events: bus, cwd: "/workspace" },
@@ -112,6 +112,8 @@ test("projects an exact V2 request including hard zero and preserves literal JSO
 			ownerRunId: "run-1",
 			nodeId: "step:only",
 			status: "completed",
+			launchContractDigest:
+				"c3c808ed83fc3e6c72d9609c5a7ca4b5a52f201174b1568f78a156923eaa3f33",
 			result: { kind: "text", text: '{"answer":42}' },
 			usage,
 		});
@@ -271,6 +273,13 @@ test("fails matching malformed terminals instead of hanging and ignores V1 traff
 		}),
 		(base) => ({ ...base, status: "mystery", usage }),
 		(base) => ({ ...base, status: "failed", usage, unknown: true }),
+		(base) => ({
+			...base,
+			status: "completed",
+			launchContractDigest: "not-a-sha256-digest",
+			result: { kind: "text", text: "x" },
+			usage,
+		}),
 		(base) => {
 			const hostile = { ...base, status: "failed", usage };
 			Object.defineProperty(hostile, "error", {
