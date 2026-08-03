@@ -23,6 +23,12 @@ change public contracts with migration notes.
   `pi-subagents` 0.36.0 and 0.37.0 across Pi 0.81.0, 0.82.1, and 0.83.0 on
   Node 24 Ubuntu and Windows.
 
+### Fixed
+
+- Accept the optional lowercase SHA-256 `launchContractDigest` emitted by newer
+  delegation-v2 providers while preserving fail-closed rejection of malformed
+  metadata and every other unknown terminal field.
+
 ### Restricted JavaScript
 
 - Preserve a non-production, three-OS `quickjs-wasi@3.2.0` runtime proof under

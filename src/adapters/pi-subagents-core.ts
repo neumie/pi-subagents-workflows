@@ -470,6 +470,7 @@ function parseTerminal(attempt: Attempt, input: unknown): LeafRunnerTerminalV1 {
 		"model",
 		"thinking",
 		"exitCode",
+		"launchContractDigest",
 		"result",
 		"usage",
 	]);
@@ -490,6 +491,12 @@ function parseTerminal(attempt: Attempt, input: unknown): LeafRunnerTerminalV1 {
 			!Number.isSafeInteger(value.exitCode))
 	)
 		throw new Error("invalid exitCode");
+	if (
+		value.launchContractDigest !== undefined &&
+		(typeof value.launchContractDigest !== "string" ||
+			!/^[0-9a-f]{64}$/u.test(value.launchContractDigest))
+	)
+		throw new Error("invalid launchContractDigest");
 	const metadata = parseOptionalMetadata(value);
 	const usage = parseUsage(value.usage);
 	if (value.status === "completed") {

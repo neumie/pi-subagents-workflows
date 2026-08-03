@@ -213,7 +213,9 @@ fallback.
 The adapter shares one response listener and one update listener per event bus,
 uses exact owned-attempt cancellation tuples, defensively validates untrusted
 provider payloads, and exposes only engine terminal/progress values—not raw
-provider DTOs or metadata.
+provider DTOs or metadata. Newer protocol-v2 terminals may include an additive
+`launchContractDigest`; the adapter accepts only an exact lowercase 64-hex
+digest and does not project that provider metadata into engine outcomes.
 
 ## Published provider contract
 
